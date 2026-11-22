@@ -1,42 +1,84 @@
 # RiffTag
 
-**Licence: GPL-3.0-or-later** (see `LICENSE`). Chosen deliberately in
-November 2026, replacing an MIT line that had only ever been a packaging
-default: GPL keeps forks open, which is what protects a free-with-donations
-model, and it is what this audience expects. It is also the only coherent
-choice while the app links **PyQt6** and **mutagen**, both of which are GPL —
-shipping a closed-source build would require a commercial PyQt licence from
-Riverbank, or a move to PySide6 (LGPL). Selling *builds* of GPL software is
-perfectly allowed; withholding the source from the people you sell to is not.
+**Tag, rename and check your music before you release it.**
 
-**Edit. Rename. Organize.**
+A music tag editor for people who manage their own libraries and release their
+own records. It shows your files in a real folder structure and lets you edit
+them like a spreadsheet — then tells you what a distributor would send back.
 
-A Linux music tag editor and organiser built to work the way **Tag&Rename
-3.9.15** works, because that is the one Dave actually likes and the Linux
-alternatives (EasyTAG, Kid3, Picard, puddletag) all miss something he uses.
+* Rename files and folders from their tags with templates, previewing every
+  change before anything moves, and undo in one click
+* Read tags back out of existing file names
+* Edit a whole album at once, touching only the fields you tick
+* Cover art by drag and drop, in the tag or as `folder.jpg`
+* Album details from MusicBrainz or Discogs
+* Lyrics cleanup for streaming delivery, and tap-to-sync to an `.lrc`
+* Convert to MP3, FLAC, WAV or M4A without touching the originals
+* Play your files while you work
+* A **release check** that reports undersized artwork, inconsistent album
+  artists, gaps in track numbering, loudness and true peak, and more
 
+Formats: ID3v2.3/2.4, iTunes MP4, Vorbis comments, APEv2 and Windows Media —
+mp3, flac, wav, aiff, ogg, opus, m4a, wma, dsf, ape, wv, mpc.
+
+**Website:** <https://rifftag.nobody777.com> · **Support:**
+<https://ko-fi.com/nobody777thankyou>
+
+Runs on Linux and Windows from one codebase. Free, and free to keep.
+
+## Where it came from
+
+RiffTag started because the Linux tag editors on offer — EasyTAG, Kid3,
+Picard, puddletag — each missed something I use, and the Windows editor I had
+been running under Wine did not run well there. So the first version set out
+to match that workflow on Linux: the folder-tree file list, the template
+grammar, the multi-file editor.
+
+It has since grown past that. The player, the format converter, the lyrics
+tools, tap-to-sync and the release check have no counterpart in what inspired
+it.
+
+The original's workflow was learned from its own published help file, never
+from its code — see [Why this was not a reverse-engineering
+job](#why-this-was-not-a-reverse-engineering-job). *RiffTag is not affiliated
+with, endorsed by, or derived from the source code of any other tagging
+product.*
+
+## Licence
+
+**GPL-3.0-or-later** (see `LICENSE`). Chosen deliberately in November 2026,
+replacing an MIT line that had only ever been a packaging default: GPL keeps
+forks open, which is what protects a free-with-donations model, and it is what
+this audience expects. It is also the only coherent choice while the app links
+**PyQt6** and **mutagen**, both of which are GPL — shipping a closed-source
+build would require a commercial PyQt licence from Riverbank, or a move to
+PySide6 (LGPL). Selling *builds* of GPL software is perfectly allowed;
+withholding the source from the people you sell to is not.
+
+## Running it
 
 ```bash
 cd /mnt/claude-brain/apps/rifftag
 PYTHONPATH=. python3 -m rifftag          # or ./rifftag.sh
-PYTHONPATH=. python3 -m pytest tests -q   # 295 tests, ~7s
+PYTHONPATH=. python3 -m pytest tests -q   # 575 tests, ~20s
 ```
 
-Needs `python3-pyqt6`, `python3-mutagen` (both already installed on Dave's PC),
-and `python3-pytest` + `ffmpeg` to run the tests.
+Needs `python3-pyqt6` and `python3-mutagen`, plus `python3-pytest` and
+`ffmpeg` to run the tests. Packaging lives in `packaging/`: a `.deb`, a
+Windows build and a Flatpak manifest.
 
 To build a shareable package:
 
 ```bash
-./packaging/build-deb.sh                 # -> dist/rifftag_0.1_all.deb  (~4.6 MB)
-sudo dpkg -i dist/rifftag_0.1_all.deb
+./packaging/build-deb.sh                 # -> dist/rifftag_0.2_all.deb  (~5.6 MB)
+sudo dpkg -i dist/rifftag_0.2_all.deb
 sudo dpkg -r rifftag
 ```
 
 Verified end to end: installs, runs from `/usr/bin/rifftag` with no `PYTHONPATH`,
 finds its artwork under `/usr/share/rifftag/assets`, and removes with no
 leftovers. `Architecture: all` with PyQt6 and mutagen taken from the distro,
-which is why it is 4.6 MB rather than the ~80 MB a bundled runtime would cost.
+which is why it is 5.6 MB rather than the ~80 MB a bundled runtime would cost.
 
 **Build gotcha:** `du -sk` returns **0** for a tree just written to the CIFS
 brain share, which silently shipped `Installed-Size: 0`. The script sums
@@ -94,8 +136,8 @@ Extract the help again with:
 7z x -y "$HOME/.wine-tagrename/drive_c/Program Files/TagRename/TagRename.chm"
 ```
 
-A clean-room spec from the vendor's own documentation is faster, more complete
-and legally uncomplicated. That extracted spec lives at
+A clean-room spec from published documentation is faster, more complete and
+legally uncomplicated. That extracted spec lives at
 `docs/tagrename-help-extracted.txt` and `docs/refpics/` on the development
 machine, and is **deliberately excluded from this repository**: it is the
 vendor's own copyrighted text and screenshots. Reading someone's published
