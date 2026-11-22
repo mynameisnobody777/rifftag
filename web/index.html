@@ -1,0 +1,968 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RiffTag</title>
+<meta name="description" content="A music tag editor built by someone who releases his own records. Rename albums from their tags, clean lyrics for streaming, and check a release before you upload it. Free, GPL-3, Linux and Windows.">
+<meta property="og:title" content="RiffTag — tag it once, ship it right">
+<meta property="og:description" content="Rename albums from their tags, clean lyrics for streaming, and find out what a distributor would send back — before you upload.">
+<meta property="og:image" content="https://rifftag.nobody777.com/img/social.jpg">
+<meta property="og:url" content="https://rifftag.nobody777.com/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=JetBrains+Mono:wght@400;500&family=Public+Sans:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --ink:        #0b0f12;
+    --surface:    #121a20;
+    --surface-2:  #16202a;
+    --line:       #22303c;
+    --text:       #e7eef3;
+    --muted:      #90a6b4;
+    --cyan:       #19e3ff;
+    --lime:       #a8e60c;
+    --amber:      #f0b429;
+    --rose:       #ff6b7a;
+    --ground:     var(--ink);
+    --panel:      var(--surface);
+    --panel-2:    var(--surface-2);
+    --rule:       var(--line);
+    --fg:         var(--text);
+    --fg-dim:     var(--muted);
+    --accent:     var(--cyan);
+    --accent-ink: #04232b;
+    --shadow:     0 18px 50px -24px rgba(0,0,0,.85);
+    --col:        210px;
+    --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    --body: "Public Sans", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  /* Light is a deliberate second theme, not an inversion: the ground goes to
+     a cool paper and the cyan darkens so it still holds against it. */
+  :root:not([data-theme="dark"]) {
+    --ground:     #f4f7f9;
+    --panel:      #ffffff;
+    --panel-2:    #eef3f6;
+    --rule:       #d5e0e7;
+    --fg:         #0e1519;
+    --fg-dim:     #53676f;
+    --accent:     #0b7d93;
+    --accent-ink: #ffffff;
+    --shadow:     0 18px 40px -28px rgba(10,30,40,.45);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: var(--ink); --panel: var(--surface); --panel-2: var(--surface-2);
+      --rule: var(--line); --fg: var(--text); --fg-dim: var(--muted);
+      --accent: var(--cyan); --accent-ink: #04232b;
+      --shadow: 0 18px 50px -24px rgba(0,0,0,.85);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: var(--ink); --panel: var(--surface); --panel-2: var(--surface-2);
+    --rule: var(--line); --fg: var(--text); --fg-dim: var(--muted);
+    --accent: var(--cyan); --accent-ink: #04232b;
+    --shadow: 0 18px 50px -24px rgba(0,0,0,.85);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--fg);
+    font: 400 16px/1.65 var(--body);
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1120px; margin-inline: auto; padding-inline: 24px; }
+  main > section:first-of-type { border-top: 0; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 700; text-wrap: balance;
+               letter-spacing: -0.02em; margin: 0; line-height: 1.12; }
+  h1 { font-size: clamp(2.5rem, 6vw, 4.1rem); }
+  h2 { font-size: clamp(1.6rem, 3.2vw, 2.25rem); }
+  h3 { font-size: 1.08rem; letter-spacing: -0.01em; }
+  p  { margin: 0; }
+  a  { color: var(--accent); }
+  a:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px;
+  }
+  img { max-width: 100%; display: block; }
+
+  /* The page's structural motif is the app's own file list: a narrow name
+     column on the left, a wider data column on the right carrying a slight
+     lift. Sections are laid out on that same split. */
+  .split { display: grid; grid-template-columns: var(--col) 1fr; gap: 40px; }
+  @media (max-width: 860px) { .split { grid-template-columns: 1fr; gap: 18px; } }
+
+  .eyebrow {
+    font: 500 .72rem/1 var(--mono); letter-spacing: .14em; text-transform: uppercase;
+    color: var(--fg-dim); margin-bottom: 10px;
+  }
+
+  /* ---- the top band -------------------------------------------------
+     The header and hero sit together on one dark field carrying Dave's
+     backdrop. It stays dark in BOTH themes on purpose: the artwork and the
+     logo are built for a dark ground, and a dark band over a paper page
+     reads as deliberate. Every colour inside is re-bound at the band, so
+     nothing inherits a token meant for the page's own surface. */
+  .top {
+    position: relative; isolation: isolate; overflow: hidden;
+    background: #05090c;
+    --fg: #e9f1f6;
+    --fg-dim: #9db3c0;
+    --rule: rgba(255,255,255,.14);
+    --panel: rgba(255,255,255,.055);
+    --panel-2: rgba(255,255,255,.03);
+    --accent: #19e3ff;
+    --accent-ink: #04232b;
+    color: var(--fg);
+  }
+  /* The artwork rides in its own layer so it can be moved independently of
+     the content. Taller than the band, so a third-speed drift never exposes
+     an edge. NOT background-attachment: fixed — that is ignored on iOS,
+     janky on Android, and would leave the image behind when the band it
+     belongs to scrolls away. */
+  .top-bg {
+    position: absolute; inset: -12% 0 -12% 0; z-index: -2;
+    background: #05090c url("img/hero-bg.jpg") center top / cover no-repeat;
+    will-change: transform;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .top-bg { will-change: auto; transform: none !important; }
+  }
+  /* The video sits on top of the still, which stays as the poster and as the
+     fallback for anyone who blocks autoplay, asks for less motion, or is on
+     a metered connection. It fades in only once it can actually play, so the
+     first paint is never a black rectangle. */
+  .top-video {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+    opacity: 0; transition: opacity .9s ease;
+  }
+  /* Held well back: at full strength the ribbons compete with the headline.
+     Composited over the band's own near-black, this keeps the motion as
+     atmosphere rather than as the subject. */
+  .top-video.on { opacity: .42; }
+  /* The still is the poster and the fallback, but once the video is running
+     it would show through as a second, differently-timed copy of the same
+     artwork. Drop it while the video plays. */
+  .top-bg.playing { background-image: none; }
+  @media (prefers-reduced-motion: reduce) { .top-video { transition: none; } }
+
+  /* Keeps the long edge of the artwork from ending in a hard line. */
+  .top::after {
+    content: ""; position: absolute; inset: auto 0 0 0; height: 140px;
+    background: linear-gradient(180deg, transparent, var(--ground));
+    pointer-events: none; z-index: -1;
+  }
+
+  /* ---- header ----------------------------------------------------
+     Outside .top on purpose: position:sticky is inert inside an
+     overflow:hidden ancestor, and the band has to clip its own artwork.
+     The bar carries the dark palette itself so it reads as one piece with
+     the band below it, and still holds up over the paper sections. */
+  header {
+    position: sticky; top: 0; z-index: 30;
+    background: rgba(5, 9, 12, .9);
+    -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255,255,255,.12);
+    --fg: #e9f1f6;
+    --fg-dim: #9db3c0;
+    --accent: #19e3ff;
+    color: var(--fg);
+  }
+  header .support-link { color: var(--accent); }
+  /* Anchor jumps must not land underneath the sticky bar. */
+  section, .top { scroll-margin-top: 70px; }
+  .bar { display: flex; align-items: center; gap: 16px; padding-block: 16px; flex-wrap: wrap; }
+  .bar img { height: 34px; width: auto; }
+  .bar nav { margin-left: auto; display: flex; gap: 22px; flex-wrap: wrap; }
+  .bar nav a { color: var(--fg-dim); text-decoration: none; font-size: .92rem; }
+  .bar nav a:hover { color: var(--accent); }
+
+  /* ---- hero ---- */
+  .hero { padding-block: clamp(48px, 7vw, 92px) clamp(36px, 5vw, 60px); }
+  .hero-grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 48px; align-items: center; }
+  @media (max-width: 940px) { .hero-grid { grid-template-columns: 1fr; gap: 32px; } }
+  .lede { font-size: 1.16rem; color: var(--fg-dim); margin-top: 20px; max-width: 54ch; }
+  .lede strong { color: var(--fg); font-weight: 600; }
+  .hero-mark { width: 118px; margin-bottom: 18px; }
+
+  .cta-row { display: flex; gap: 12px; margin-top: 30px; flex-wrap: wrap; }
+  .btn {
+    font: 600 .95rem/1 var(--body); text-decoration: none; padding: 14px 20px;
+    border-radius: 7px; display: inline-flex; align-items: center; gap: 10px;
+    border: 1px solid var(--rule); color: var(--fg); background: var(--panel);
+  }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  .btn small { font-weight: 400; opacity: .72; }
+
+  .shot {
+    border: 1px solid var(--rule); border-radius: 10px; overflow: hidden;
+    box-shadow: var(--shadow); background: var(--panel);
+  }
+  .shot figcaption {
+    font: 400 .82rem/1.5 var(--mono); color: var(--fg-dim);
+    padding: 10px 14px; border-top: 1px solid var(--rule); background: var(--panel-2);
+  }
+
+  /* ---- the waveform: the logo's own motif, breathing ---- */
+  .wave-wrap { position: relative; margin-bottom: 18px; }
+  .wave { display: block; width: 190px; height: 54px; }
+  .hero-mark { width: 118px; margin-bottom: 18px; }
+
+  /* ---- a strip of real covers: the records this was built for ---- */
+  .covers {
+    margin-top: clamp(40px, 6vw, 64px); overflow: hidden;
+    border-block: 1px solid var(--rule); padding-block: 18px;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+            mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+  }
+  .covers-track { display: flex; gap: 14px; width: max-content; animation: drift 90s linear infinite; }
+  .covers-track img {
+    width: 104px; height: 104px; border-radius: 6px; border: 1px solid var(--rule);
+    object-fit: cover; flex: none;
+  }
+  .covers:hover .covers-track { animation-play-state: paused; }
+  @keyframes drift { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  @media (prefers-reduced-motion: reduce) {
+    .covers-track { animation: none; }
+    .covers { overflow-x: auto; }
+  }
+  .covers-note {
+    font: 400 .78rem/1.5 var(--mono); color: var(--fg-dim);
+    padding-top: 14px; text-align: center;
+  }
+
+  /* ---- the mask demo: the product, working, in the page ---- */
+  .demo {
+    margin-top: 32px; border: 1px solid var(--rule); border-radius: 10px;
+    overflow: hidden; background: var(--panel);
+  }
+  .demo-head {
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    padding: 16px 20px; border-bottom: 1px solid var(--rule); background: var(--panel-2);
+  }
+  .demo-head label { font: 500 .72rem/1 var(--mono); letter-spacing: .12em;
+                     text-transform: uppercase; color: var(--fg-dim); }
+  .demo-head input {
+    flex: 1 1 220px; min-width: 0; font: 500 .95rem var(--mono);
+    padding: 10px 12px; border-radius: 6px; color: var(--fg);
+    background: var(--ground); border: 1px solid var(--rule);
+  }
+  .demo-head input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .presets { display: flex; gap: 8px; flex-wrap: wrap; }
+  .presets button {
+    font: 400 .78rem/1 var(--mono); padding: 8px 10px; border-radius: 5px;
+    cursor: pointer; color: var(--fg-dim); background: var(--ground);
+    border: 1px solid var(--rule);
+  }
+  .presets button:hover { color: var(--accent); border-color: var(--accent); }
+  .demo-rows { font: 400 .88rem/1.7 var(--mono); }
+  .demo-row {
+    display: grid; grid-template-columns: 1fr 24px 1fr; gap: 14px; align-items: center;
+    padding: 9px 20px; border-top: 1px solid var(--rule);
+  }
+  .demo-row:first-child { border-top: 0; }
+  .demo-row .from { color: var(--fg-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .demo-row .arrow { color: var(--accent); text-align: center; }
+  .demo-row .to { color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .demo-row .to.bad { color: var(--amber); }
+  @media (max-width: 620px) {
+    .demo-row { grid-template-columns: 1fr; gap: 2px; }
+    .demo-row .arrow { display: none; }
+  }
+  .demo-foot {
+    font: 400 .78rem/1.5 var(--mono); color: var(--fg-dim);
+    padding: 12px 20px; border-top: 1px solid var(--rule); background: var(--panel-2);
+  }
+
+  /* ---- fact strip: real numbers, lined up like the app's status bar ---- */
+  .facts {
+    margin-top: clamp(36px, 5vw, 56px); border-block: 1px solid var(--rule);
+    display: grid; grid-template-columns: repeat(4, 1fr);
+  }
+  @media (max-width: 760px) { .facts { grid-template-columns: repeat(2, 1fr); } }
+  .fact { padding: 20px 22px; border-left: 1px solid var(--rule); }
+  .fact:first-child { border-left: 0; }
+  .fact b {
+    display: block; font: 600 1.45rem/1.2 var(--display);
+    font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+  }
+  .fact span { font: 400 .8rem/1.4 var(--mono); color: var(--fg-dim); }
+
+  section { padding-block: clamp(52px, 8vw, 92px); }
+  section + section { border-top: 1px solid var(--rule); }
+  .section-lede { color: var(--fg-dim); max-width: 62ch; margin-top: 14px; }
+
+  /* ---- feature rows ---- */
+  .features { display: grid; gap: 1px; background: var(--rule);
+              border: 1px solid var(--rule); border-radius: 10px; overflow: hidden;
+              grid-template-columns: repeat(3, 1fr); margin-top: 36px; }
+  @media (max-width: 860px) { .features { grid-template-columns: 1fr; } }
+  .feature { background: var(--panel); padding: 24px; }
+  /* The glyphs are cut-outs in the logo's own lime-to-cyan gradient, so they
+     need no tinting and sit on either theme's panel. */
+  .feature img { width: 38px; height: 38px; object-fit: contain; margin-bottom: 14px; }
+  .feature h3 { margin-bottom: 8px; }
+  .feature p { color: var(--fg-dim); font-size: .95rem; }
+
+  /* ---- the mask table, set in the app's own monospace ---- */
+  .masks {
+    margin-top: 28px; background: var(--panel-2); border: 1px solid var(--rule);
+    border-radius: 10px; padding: 20px 22px; overflow-x: auto;
+  }
+  .masks table { border-collapse: collapse; font: 400 .86rem/1.9 var(--mono); width: 100%; }
+  .masks td { padding-right: 26px; white-space: nowrap; }
+  .masks td:first-child { color: var(--accent); }
+  .masks td:nth-child(2), .masks td:nth-child(4) { color: var(--fg-dim); }
+  .masks td:nth-child(3) { color: var(--accent); }
+
+  /* ---- release check: the app's severity language, in HTML ---- */
+  .findings {
+    margin-top: 32px; border: 1px solid var(--rule); border-radius: 10px;
+    overflow: hidden; background: var(--panel);
+  }
+  .findings .head {
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+    padding: 16px 20px; border-bottom: 1px solid var(--rule); background: var(--panel-2);
+  }
+  .findings .head b { font: 700 1.05rem/1 var(--display); }
+  .findings .head span { font: 400 .84rem/1 var(--mono); color: var(--fg-dim); }
+  .finding {
+    display: grid; grid-template-columns: 92px 1fr 300px; gap: 18px;
+    padding: 14px 20px; border-top: 1px solid var(--rule); align-items: start;
+  }
+  .finding:first-of-type { border-top: 0; }
+  @media (max-width: 820px) { .finding { grid-template-columns: 92px 1fr; } .finding .fix { grid-column: 2; } }
+  .chip {
+    font: 500 .7rem/1 var(--mono); letter-spacing: .08em; text-transform: uppercase;
+    padding: 6px 9px; border-radius: 4px; display: inline-block;
+    border: 1px solid currentColor;
+  }
+  .chip.warn { color: var(--amber); }
+  .chip.note { color: var(--accent); }
+  .finding p { font-size: .94rem; }
+  .finding .fix { color: var(--fg-dim); font-size: .88rem; }
+
+  /* ---- two-up panels ---- */
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 36px; }
+  @media (max-width: 860px) { .duo { grid-template-columns: 1fr; } }
+
+  /* ---- downloads ---- */
+  .platforms { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 36px; }
+  @media (max-width: 860px) { .platforms { grid-template-columns: 1fr; } }
+  .platform { border: 1px solid var(--rule); border-radius: 10px; padding: 26px; background: var(--panel); }
+  .platform h3 { display: flex; align-items: baseline; gap: 10px; }
+  .platform h3 em {
+    font: 500 .7rem/1 var(--mono); font-style: normal; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--fg-dim);
+  }
+  .platform ul { margin: 16px 0 0; padding-left: 18px; color: var(--fg-dim); font-size: .92rem; }
+  .platform li { margin-bottom: 6px; }
+  .platform code { font: 400 .84rem var(--mono); color: var(--fg); }
+
+  /* ---- support ---- */
+  .support {
+    border: 1px solid var(--rule); border-radius: 12px; padding: clamp(26px, 4vw, 40px);
+    background: var(--panel); display: grid; grid-template-columns: 1fr auto;
+    gap: 28px; align-items: center; margin-top: 36px;
+  }
+  @media (max-width: 760px) { .support { grid-template-columns: 1fr; } }
+  .support p { color: var(--fg-dim); margin-top: 10px; max-width: 52ch; }
+
+  /* ---- click a screenshot to see it full size ---- */
+  .shot button.zoom {
+    display: block; width: 100%; padding: 0; border: 0; background: none;
+    cursor: zoom-in; position: relative;
+  }
+  .shot button.zoom::after {
+    content: "View full size"; position: absolute; right: 12px; bottom: 12px;
+    font: 500 .72rem/1 var(--mono); letter-spacing: .06em; text-transform: uppercase;
+    padding: 8px 10px; border-radius: 5px; color: var(--text);
+    background: rgba(9,14,18,.82); border: 1px solid rgba(255,255,255,.16);
+    opacity: 0; transition: opacity .18s ease;
+  }
+  .shot button.zoom:hover::after,
+  .shot button.zoom:focus-visible::after { opacity: 1; }
+
+  dialog.viewer {
+    border: 0; padding: 0; background: none; max-width: 96vw; max-height: 94vh;
+    color: var(--fg);
+  }
+  dialog.viewer::backdrop { background: rgba(5,9,12,.9); }
+  dialog.viewer img {
+    max-width: 96vw; max-height: 84vh; width: auto; border-radius: 8px;
+    border: 1px solid var(--rule);
+  }
+  dialog.viewer figcaption {
+    font: 400 .85rem/1.5 var(--mono); color: #c7d6de; padding-top: 12px;
+    display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  }
+  dialog.viewer button.close {
+    background: none; border: 0; color: inherit; cursor: pointer;
+    font: 500 .8rem/1 var(--mono); letter-spacing: .06em; text-transform: uppercase;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .shot button.zoom::after { transition: none; }
+  }
+
+  /* ---- back to the top ---- */
+  .to-top {
+    position: fixed; right: 20px; bottom: 20px; z-index: 20;
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 11px 15px; border-radius: 999px; cursor: pointer;
+    font: 500 .78rem/1 var(--mono); letter-spacing: .06em; text-transform: uppercase;
+    color: var(--fg); background: var(--panel); border: 1px solid var(--rule);
+    box-shadow: var(--shadow);
+    opacity: 0; visibility: hidden; transform: translateY(8px);
+    transition: opacity .2s ease, transform .2s ease, visibility .2s;
+  }
+  .to-top.on { opacity: 1; visibility: visible; transform: none; }
+  .to-top:hover { color: var(--accent); border-color: var(--accent); }
+  .to-top svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2.2; }
+  @media (prefers-reduced-motion: reduce) { .to-top { transition: none; } }
+  @media (max-width: 560px) { .to-top span { display: none; } .to-top { padding: 12px; } }
+
+  footer { border-top: 1px solid var(--rule); padding-block: 36px 56px; color: var(--fg-dim); font-size: .9rem; }
+  footer .split { align-items: start; }
+  footer a { color: var(--fg-dim); }
+  footer a:hover { color: var(--accent); }
+</style>
+
+<header>
+  <div class="wrap bar">
+    <a href="#top" aria-label="RiffTag, back to the top"><img src="img/wordmark.png" alt="RiffTag"></a>
+    <nav>
+      <a href="#what">What it does</a>
+      <a href="#release-check">Release Check</a>
+      <a href="#lyrics">Lyrics</a>
+      <a href="#download">Download</a>
+      <a href="#support" class="support-link">Support</a>
+    </nav>
+  </div>
+</header>
+
+<div class="top" id="top">
+<div class="top-bg" id="top-bg" aria-hidden="true">
+  <video class="top-video" id="top-video" poster="img/hero-bg.jpg"
+         muted loop playsinline preload="none"></video>
+</div>
+
+  <div class="wrap hero">
+    <div class="hero-grid">
+      <div>
+        <div class="wave-wrap">
+          <canvas class="wave" id="wave" width="380" height="108" aria-hidden="true"></canvas>
+        </div>
+        <h1>Tag it once. Ship it right.</h1>
+        <p class="lede">
+          A music tag editor built by someone who releases his own records.
+          Rename a whole album from its tags, fix the tags from the file names,
+          clean up lyrics for streaming — then <strong>check the release before
+          you upload it</strong> and find out what a distributor would have
+          sent back.
+        </p>
+        <div class="cta-row">
+          <a class="btn primary" href="#download">Download for Linux <small>· .deb</small></a>
+          <a class="btn" href="#download">Download for Windows <small>· .exe</small></a>
+        </div>
+      </div>
+      <figure class="shot" style="margin:0">
+        <button class="zoom" type="button"><img src="img/app-dark.jpg" alt="The RiffTag window: a twelve-track album with artist, album, title, year, genre and track columns filled in, cover art on the right, and the built-in player part-way through a track."></button>
+        <figcaption>One album, twelve tracks, 1:06:50 — and the player running while you work.</figcaption>
+      </figure>
+    </div>
+
+    <div class="covers" aria-label="Albums tagged with RiffTag">
+      <div class="covers-track" id="covers"></div>
+    </div>
+    <p class="covers-note">Every record above was tagged, renamed and checked with RiffTag.</p>
+
+    <div class="facts">
+      <div class="fact"><b>12</b><span>tag formats</span></div>
+      <div class="fact"><b>574</b><span>tests passing</span></div>
+      <div class="fact"><b>GPL-3</b><span>free software</span></div>
+      <div class="fact"><b>2</b><span>platforms, one codebase</span></div>
+    </div>
+  </div>
+</div><!-- /.top -->
+
+<main>
+
+  <section id="what">
+    <div class="wrap split">
+      <div>
+        <p class="eyebrow">File Name</p>
+        <h2>The grid, and everything in it</h2>
+      </div>
+      <div>
+        <p class="section-lede">
+          Every file in a real folder structure, editable like a spreadsheet.
+          Tick the fields you mean to change, save across the whole album, and
+          nothing else gets touched — an absent field is left exactly as it was.
+        </p>
+
+        <div class="features">
+          <div class="feature">
+            <img src="img/glyphs/tag.png" alt="" width="38" height="38">
+            <h3>Rename from tags</h3>
+            <p>Templates, with a Test window that shows every before and after
+              pair — and a button to go ahead once it looks right. Undo is one click.</p>
+          </div>
+          <div class="feature">
+            <img src="img/glyphs/waveform.png" alt="" width="38" height="38">
+            <h3>Tags from file names</h3>
+            <p>The same templates, backwards. Point them at
+              <code>04&nbsp;-&nbsp;In&nbsp;The&nbsp;Light.mp3</code> and get the
+              track number and title back out.</p>
+          </div>
+          <div class="feature">
+            <img src="img/glyphs/folder.png" alt="" width="38" height="38">
+            <h3>Every format you own</h3>
+            <p>ID3v2.3 and 2.4, iTunes MP4, Vorbis comments, APEv2 and Windows
+              Media — mp3, flac, wav, aiff, ogg, opus, m4a, wma, dsf, ape, wv, mpc.</p>
+          </div>
+          <div class="feature">
+            <img src="img/glyphs/cover.png" alt="" width="38" height="38">
+            <h3>Cover art by drag and drop</h3>
+            <p>Drop a picture on the art box and it goes into every selected
+              file, or beside them as <code>folder.jpg</code>. JPEG and PNG pass
+              through untouched.</p>
+          </div>
+          <div class="feature">
+            <img src="img/glyphs/globe.png" alt="" width="38" height="38">
+            <h3>Album details from the web</h3>
+            <p>MusicBrainz needs no account; Discogs takes a free token. Titles
+              line up against your files, and you write only what you tick.</p>
+          </div>
+          <div class="feature">
+            <img src="img/glyphs/check.png" alt="" width="38" height="38">
+            <h3>Convert without leaving</h3>
+            <p>FLAC, WAV, M4A and MP3 at the quality you choose. Output lands in
+              a subfolder — the originals are never touched.</p>
+          </div>
+        </div>
+
+        <div class="demo">
+          <div class="demo-head">
+            <label for="mask">File name mask</label>
+            <input id="mask" value="%6 - %2" spellcheck="false" autocomplete="off">
+            <div class="presets">
+              <button type="button" data-mask="%6 - %2">%6 - %2</button>
+              <button type="button" data-mask="%1 - %2">%1 - %2</button>
+              <button type="button" data-mask="%3 - %6 - %2">%3 - %6 - %2</button>
+              <button type="button" data-mask="%4 %1 - %2">%4 %1 - %2</button>
+            </div>
+          </div>
+          <div class="demo-rows" id="demo-rows"></div>
+          <div class="demo-foot">Live — type your own mask. These are real tags from a real album.</div>
+        </div>
+
+        <div class="masks">
+          <table>
+            <tr><td>%1</td><td>Artist</td><td>%6</td><td>Track #</td></tr>
+            <tr><td>%2</td><td>Title</td><td>%aa</td><td>Album Artist</td></tr>
+            <tr><td>%3</td><td>Album</td><td>%b</td><td>BPM</td></tr>
+            <tr><td>%4</td><td>Year</td><td>%key</td><td>Initial Key</td></tr>
+            <tr><td>%5</td><td>Genre</td><td>%t</td><td>Play time</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="release-check">
+    <div class="wrap split">
+      <div>
+        <p class="eyebrow">Release Check</p>
+        <h2>What a distributor would send back</h2>
+      </div>
+      <div>
+        <p class="section-lede">
+          Point it at a finished album and it reports what will be rejected,
+          what will quietly hurt you on streaming, and what is simply worth a
+          look. Every finding names the file and the fix. Nothing is written.
+        </p>
+
+        <div class="findings">
+          <div class="head">
+            <b>4 warnings, 2 notes</b>
+            <span>17 files · Gratitude · checked in 0.4s</span>
+          </div>
+          <div class="finding">
+            <span class="chip warn">Warning</span>
+            <p>Cover art is 1024×1024; 3000×3000 is the usual minimum. <em>(every track)</em></p>
+            <p class="fix">Re-export the cover at 3000×3000 and embed it with folder.jpg → tag art.</p>
+          </div>
+          <div class="finding">
+            <span class="chip warn">Warning</span>
+            <p>Lyrics still carry section headers like [Verse 1]. <em>(every track)</em></p>
+            <p class="fix">Lyrics → Clean lyrics for streaming.</p>
+          </div>
+          <div class="finding">
+            <span class="chip warn">Warning</span>
+            <p>Track titles use more than one capitalisation: 15× Title Case, 2× lower</p>
+            <p class="fix">The Rename tab's Case box can restyle them, or fix them in the grid.</p>
+          </div>
+          <div class="finding">
+            <span class="chip note">Note</span>
+            <p>−7.4 LUFS — 6.6 dB louder than the −14 LUFS streaming target, true peak +0.8 dBTP</p>
+            <p class="fix">Platforms turn it down anyway; a true peak above −1 can clip once it is transcoded.</p>
+          </div>
+          <div class="finding">
+            <span class="chip note">Note</span>
+            <p>No ISRC. Your distributor usually assigns one — paste it back in afterwards.</p>
+            <p class="fix"></p>
+          </div>
+        </div>
+
+        <p class="section-lede" style="margin-top:22px">
+          It also catches an album title that disagrees with itself, an album
+          artist that differs between tracks, duplicate or missing track
+          numbers, artwork that is not square or not the same on every file,
+          “feat.” in the title but not the artist field, and a lossy master
+          where a distributor wants WAV or FLAC.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="lyrics">
+    <div class="wrap split">
+      <div>
+        <p class="eyebrow">Lyrics</p>
+        <h2>Written for people who write lyrics</h2>
+      </div>
+      <div>
+        <p class="section-lede">
+          Writing tools leave scaffolding everywhere — <code>[Verse 1]</code>,
+          <code>(x2)</code>, a copyright line at the bottom. Streaming platforms
+          want the words and nothing else.
+        </p>
+        <div class="duo">
+          <figure class="shot" style="margin:0">
+            <button class="zoom" type="button"><img src="img/lyrics-clean.png" alt="The lyrics cleaner showing a before and after pane: section headers and blank runs stripped out, the words kept."></button>
+            <figcaption>Nine switches, a real before and after, nothing written until you press Clean.</figcaption>
+          </figure>
+          <figure class="shot" style="margin:0">
+            <button class="zoom" type="button"><img src="img/lrc-sync.png" alt="The tap-to-sync window, with timestamps against the first lines of a song."></button>
+            <figcaption>Tap Space on the beat of each line. Out comes an .lrc.</figcaption>
+          </figure>
+        </div>
+        <p class="section-lede" style="margin-top:22px">
+          It never deletes a line that might be lyrics: bracketed lines are
+          scaffolding by construction, but a bare <code>Chorus:</code> only goes
+          if the word is one it knows. “Hold on:” is a lyric.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="download">
+    <div class="wrap split">
+      <div>
+        <p class="eyebrow">Download</p>
+        <h2>Free, and free to keep</h2>
+      </div>
+      <div>
+        <p class="section-lede">
+          The same program on both, from the same source. No accounts, no
+          telemetry, no feature locked behind anything.
+        </p>
+        <div class="platforms">
+          <div class="platform">
+            <h3>Linux <em>Debian · Ubuntu · Mint</em></h3>
+            <ul>
+              <li><code>sudo dpkg -i rifftag_0.2_all.deb</code></li>
+              <li>~5 MB — Qt and mutagen come from your distro</li>
+              <li>Playback wants <code>python3-pyqt6.qtmultimedia</code>; converting wants <code>ffmpeg</code>. Both optional.</li>
+            </ul>
+            <div class="cta-row">
+              <a class="btn primary" href="downloads/rifftag_0.2_all.deb" download>Download · 5.6 MB</a>
+            </div>
+          </div>
+          <div class="platform">
+            <h3>Windows <em>10 · 11</em></h3>
+            <ul>
+              <li>Unzip and run <code>RiffTag.exe</code> — nothing to install</li>
+              <li>~118 MB, because Qt travels with it</li>
+              <li>ffmpeg on your PATH enables converting and the loudness check</li>
+            </ul>
+            <div class="cta-row">
+              <a class="btn primary" href="https://pub-3e96c354e73f4e2cbb4ecadbcb7e3f1f.r2.dev/rifftag-0.2-windows.zip">Download · 52 MB</a>
+            </div>
+          </div>
+        </div>
+        <p class="section-lede" style="margin-top:28px">
+          Source: <a href="downloads/rifftag-0.2-source.tar.gz">rifftag-0.2-source.tar.gz</a>
+          (8.8 MB). The GPL gives you the right to it, so it ships beside the
+          builds rather than on request.
+        </p>
+
+        <figure class="shot" style="margin-top:28px">
+          <button class="zoom" type="button"><img src="img/app-light.jpg" alt="RiffTag in its light theme, showing the same album."></button>
+          <figcaption>Light theme, dark theme, or whatever your desktop is already using.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="support">
+    <div class="wrap">
+      <div class="support">
+        <div>
+          <h2>RiffTag is free. It always will be.</h2>
+          <p>
+            No trial, no upgrade prompt, no feature held back. If it saved you
+            an evening, there is a tip jar — and the app asks exactly once, in
+            the About box, and never again.
+          </p>
+        </div>
+        <a class="btn primary" href="https://ko-fi.com/nobody777thankyou">Buy me a coffee</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap split">
+    <div>
+      <p class="eyebrow">RiffTag</p>
+      <p>GPL-3.0-or-later. Use it, study it, change it, share it.</p>
+    </div>
+    <div>
+      <p>Built by <a href="https://nobody777.com">Dave Yeubanks</a>, an independent
+        musician who got tired of the tools and wrote his own. Tag reading and
+        writing by <a href="https://mutagen.readthedocs.io/">mutagen</a>;
+        interface by Qt. Album details from
+        <a href="https://musicbrainz.org/">MusicBrainz</a> and
+        <a href="https://www.discogs.com/">Discogs</a>.</p>
+    </div>
+  </div>
+</footer>
+
+<button class="to-top" id="to-top" type="button" aria-label="Back to the top">
+  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <span>Top</span>
+</button>
+
+<dialog class="viewer" id="viewer" aria-label="Screenshot, full size">
+  <img id="viewer-img" src="" alt="">
+  <figcaption>
+    <span id="viewer-caption"></span>
+    <button class="close" type="button" id="viewer-close">Close · Esc</button>
+  </figcaption>
+</dialog>
+
+<script>
+  (function () {
+    var viewer = document.getElementById('viewer');
+    var image = document.getElementById('viewer-img');
+    var caption = document.getElementById('viewer-caption');
+    if (!viewer || !viewer.showModal) { return; }   // no dialog support: links still work
+
+    document.querySelectorAll('.shot button.zoom').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var shot = button.querySelector('img');
+        var figure = button.closest('figure');
+        var text = figure && figure.querySelector('figcaption');
+        image.src = shot.getAttribute('src');
+        image.alt = shot.getAttribute('alt') || '';
+        caption.textContent = text ? text.textContent.trim() : '';
+        viewer.showModal();
+      });
+    });
+
+    document.getElementById('viewer-close').addEventListener('click', function () {
+      viewer.close();
+    });
+    // Clicking the backdrop closes it; clicking the picture does not.
+    viewer.addEventListener('click', function (event) {
+      if (event.target === viewer) { viewer.close(); }
+    });
+  })();
+
+  // ---- the cover strip: duplicated once so the drift loops seamlessly ----
+  (function () {
+    var track = document.getElementById('covers');
+    if (!track) { return; }
+    var count = 23;
+    var html = '';
+    for (var i = 0; i < count; i++) {
+      var n = (i < 10 ? '0' : '') + i;
+      html += '<img src="img/covers/' + n + '.jpg" alt="" loading="lazy">';
+    }
+    track.innerHTML = html + html;
+  })();
+
+  // ---- the mask demo: the real grammar, on real tags ----
+  (function () {
+    var input = document.getElementById('mask');
+    var rows = document.getElementById('demo-rows');
+    if (!input || !rows) { return; }
+
+    var album = [
+      { file: '01 - We Three Kings.wav', '%1': 'Dave Yeubanks and the Ecobyte Collective',
+        '%2': 'We Three Kings', '%3': 'EPIC: A Progressive Rock Christmas', '%4': '2026',
+        '%5': 'Rock', '%6': '01' },
+      { file: '04 - Noel The King Has Come.wav', '%1': 'Dave Yeubanks and the Ecobyte Collective',
+        '%2': 'Noel: The King Has Come', '%3': 'EPIC: A Progressive Rock Christmas', '%4': '2026',
+        '%5': 'Rock', '%6': '04' },
+      { file: '09 - O Holy Night.wav', '%1': 'Dave Yeubanks and the Ecobyte Collective',
+        '%2': 'O Holy Night', '%3': 'EPIC: A Progressive Rock Christmas', '%4': '2026',
+        '%5': 'Rock', '%6': '09' },
+      { file: '12 - Auld Lang AI.wav', '%1': 'Dave Yeubanks and the Ecobyte Collective',
+        '%2': 'Auld Lang AI', '%3': 'EPIC: A Progressive Rock Christmas', '%4': '2026',
+        '%5': 'Rock', '%6': '12' }
+    ];
+    var known = ['%1', '%2', '%3', '%4', '%5', '%6'];
+    // The app sanitises names for Windows as well as Linux, by default.
+    var illegal = /[\\/:*?"<>|]/g;
+
+    function render() {
+      var mask = input.value;
+      var html = '';
+      album.forEach(function (track) {
+        var name = mask.replace(/%(?:aa|[0-9#b]|key|t)/g, function (token) {
+          return known.indexOf(token) >= 0 ? track[token] : token;
+        });
+        name = name.replace(illegal, '');
+        var empty = name.trim() === '';
+        html += '<div class="demo-row"><span class="from">' + track.file + '</span>' +
+                '<span class="arrow">\u2192</span>' +
+                '<span class="to' + (empty ? ' bad' : '') + '">' +
+                (empty ? 'a mask cannot be empty' : name + '.wav') + '</span></div>';
+      });
+      rows.innerHTML = html;
+    }
+
+    input.addEventListener('input', render);
+    document.querySelectorAll('.presets button').forEach(function (button) {
+      button.addEventListener('click', function () {
+        input.value = button.getAttribute('data-mask');
+        render();
+      });
+    });
+    render();
+  })();
+
+  // ---- the hero waveform: the logo's motif, breathing ----
+  (function () {
+    var canvas = document.getElementById('wave');
+    if (!canvas || !canvas.getContext) { return; }
+    var ctx = canvas.getContext('2d');
+    var w = canvas.width, h = canvas.height;
+    var bars = 34, gap = 3;
+    var width = (w - gap * (bars - 1)) / bars;
+    var calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // A fixed shape, so it reads as a waveform rather than noise.
+    var shape = [];
+    for (var i = 0; i < bars; i++) {
+      var x = i / (bars - 1);
+      shape.push(0.25 + 0.75 * Math.pow(Math.sin(Math.PI * x), 0.7) *
+                 (0.55 + 0.45 * Math.sin(x * 19 + Math.cos(x * 7))));
+    }
+    var gradient = ctx.createLinearGradient(0, 0, w, 0);
+    gradient.addColorStop(0, '#a8e60c');
+    gradient.addColorStop(0.5, '#19e3ff');
+    gradient.addColorStop(1, '#19e3ff');
+
+    function frame(now) {
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = gradient;
+      for (var i = 0; i < bars; i++) {
+        var pulse = calm ? 1 : 0.82 + 0.18 * Math.sin(now / 760 + i * 0.42);
+        var bh = Math.max(3, shape[i] * h * pulse);
+        var x = i * (width + gap);
+        var y = (h - bh) / 2;
+        ctx.beginPath();
+        if (ctx.roundRect) { ctx.roundRect(x, y, width, bh, width / 2); }
+        else { ctx.rect(x, y, width, bh); }
+        ctx.fill();
+      }
+      if (!calm) { requestAnimationFrame(frame); }
+    }
+    if (calm) { frame(0); } else { requestAnimationFrame(frame); }
+  })();
+
+  // ---- the moving backdrop, when it is welcome ----
+  (function () {
+    var video = document.getElementById('top-video');
+    if (!video || !video.canPlayType) { return; }
+
+    var calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var link = navigator.connection || {};
+    if (calm || link.saveData) { return; }   // the still is the whole design
+
+    // Portrait crop for phones, landscape for everything else. <source
+    // media> is ignored for video, so the choice is made here instead.
+    var portrait = window.matchMedia('(max-aspect-ratio: 1/1)').matches;
+    var base = 'video/' + (portrait ? 'hero-mobile' : 'hero-desktop');
+
+    [['webm', 'video/webm'], ['mp4', 'video/mp4']].forEach(function (pair) {
+      var source = document.createElement('source');
+      source.src = base + '.' + pair[0];
+      source.type = pair[1];
+      video.appendChild(source);
+    });
+
+    video.addEventListener('canplay', function () {
+      video.classList.add('on');
+      var layer = document.getElementById('top-bg');
+      if (layer) { layer.classList.add('playing'); }
+    }, { once: true });
+    video.load();
+
+    var playing = video.play();
+    if (playing && playing.catch) {
+      // Autoplay refused: the poster is already the right picture.
+      playing.catch(function () {});
+    }
+  })();
+
+  // ---- hero parallax: the backdrop drifts at a third of the scroll ----
+  (function () {
+    var layer = document.getElementById('top-bg');
+    var band = document.querySelector('.top');
+    if (!layer || !band) { return; }
+
+    var calm = window.matchMedia('(prefers-reduced-motion: reduce)');
+    var narrow = window.matchMedia('(max-width: 700px)');
+    var ticking = false;
+
+    function position() {
+      ticking = false;
+      // Off on phones: the band is short there, so the drift reads as a
+      // wobble rather than depth, and it costs a repaint per frame.
+      if (calm.matches || narrow.matches) {
+        layer.style.transform = '';
+        return;
+      }
+      var seen = Math.min(window.scrollY, band.offsetHeight);
+      layer.style.transform = 'translate3d(0,' + (seen * 0.32).toFixed(1) + 'px,0)';
+    }
+
+    function onScroll() {
+      if (!ticking) { ticking = true; requestAnimationFrame(position); }
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    calm.addEventListener('change', position);
+    position();
+  })();
+
+  (function () {
+    var button = document.getElementById('to-top');
+    if (!button) { return; }
+    var calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function update() {
+      button.classList.toggle('on', window.scrollY > 600);
+    }
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+
+    button.addEventListener('click', function () {
+      window.scrollTo({ top: 0, behavior: calm ? 'auto' : 'smooth' });
+    });
+  })();
+</script>

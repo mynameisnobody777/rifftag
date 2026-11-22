@@ -1,0 +1,26 @@
+# Build output
+build/
+dist/
+*.deb
+
+# Published artifacts — rebuilt by packaging/release.sh, not source
+web/downloads/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Cloudflare deploy state
+.wrangler/
+node_modules/
+
+# Third-party reference material — NOT ours to publish.
+#
+# The spec for this rebuild came from Tag&Rename's own help file: 30 topics of
+# text and 60 screenshots extracted from TagRename.chm in the Wine prefix.
+# That was the right way to build a clean-room clone, and it is fine to keep
+# on a private disk. It is someone else's copyrighted work, so it must never
+# reach a public repository, a release tarball or a Flathub submission.
+docs/refpics/
+docs/tagrename-help-extracted.txt

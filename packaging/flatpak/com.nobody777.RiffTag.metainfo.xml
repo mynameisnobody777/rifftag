@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AppStream metadata. This is what a software centre actually displays, and
+  what Flathub reviews; the .desktop file only gets the app into a menu.
+
+  The id must match the Flatpak id, the .desktop file name and the icon name,
+  or the listing silently loses its icon. Reverse-DNS from a domain Dave
+  controls: rifftag.nobody777.com.
+-->
+<component type="desktop-application">
+  <id>com.nobody777.RiffTag</id>
+  <launchable type="desktop-id">com.nobody777.RiffTag.desktop</launchable>
+
+  <name>RiffTag</name>
+  <summary>Tag, rename and check your music before you release it</summary>
+  <developer id="com.nobody777">
+    <name>Dave Yeubanks</name>
+  </developer>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <description>
+    <p>
+      RiffTag is a music tag editor for people who manage their own libraries
+      and release their own records. It shows your files in a real folder
+      structure and lets you edit them like a spreadsheet.
+    </p>
+    <p>Among other things, it can:</p>
+    <ul>
+      <li>Rename files and folders from their tags using templates, with a preview of every change before anything moves</li>
+      <li>Read tags back out of existing file names</li>
+      <li>Edit a whole album at once, changing only the fields you tick</li>
+      <li>Manage cover art, including drag and drop, and folder.jpg in and out</li>
+      <li>Fetch album details from MusicBrainz or Discogs</li>
+      <li>Clean lyrics up for streaming delivery and time them to the music as an .lrc</li>
+      <li>Convert between MP3, FLAC, WAV and M4A without touching the originals</li>
+      <li>Play your files while you work, with a proper transport</li>
+      <li>Run a release check that reports what a distributor would send back: artwork that is too small, inconsistent album artists, gaps in the track numbering, loudness and true peak, and more</li>
+    </ul>
+    <p>
+      It reads and writes ID3v2, iTunes MP4 atoms, Vorbis comments, APEv2 and
+      Windows Media tags, covering mp3, flac, wav, aiff, ogg, opus, m4a, wma,
+      dsf, ape, wv and mpc.
+    </p>
+  </description>
+
+  <categories>
+    <category>AudioVideo</category>
+    <category>Audio</category>
+    <category>Music</category>
+  </categories>
+
+  <keywords>
+    <keyword>tag</keyword>
+    <keyword>id3</keyword>
+    <keyword>mp3</keyword>
+    <keyword>flac</keyword>
+    <keyword>rename</keyword>
+    <keyword>metadata</keyword>
+    <keyword>lyrics</keyword>
+  </keywords>
+
+  <url type="homepage">https://rifftag.nobody777.com</url>
+  <url type="donation">https://ko-fi.com/nobody777thankyou</url>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://rifftag.nobody777.com/img/app-dark.jpg</image>
+      <caption>An album loaded, with tags, cover art and the built-in player</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://rifftag.nobody777.com/img/release-check.png</image>
+      <caption>The release check, reporting what a distributor would send back</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://rifftag.nobody777.com/img/lyrics-clean.png</image>
+      <caption>Cleaning lyrics for streaming, with a before and after</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://rifftag.nobody777.com/img/lrc-sync.png</image>
+      <caption>Tapping out timed lyrics against the playing track</caption>
+    </screenshot>
+  </screenshots>
+
+  <content_rating type="oars-1.1"/>
+
+  <!-- The app reads and writes the user's own music, so it needs real file
+       access; everything else it asks for is declared in the manifest. -->
+  <releases>
+    <release version="0.2" date="2026-11-22">
+      <description>
+        <p>
+          Built-in player, format conversion, lyrics cleanup and tap-to-sync,
+          cover art by drag and drop, and the release check.
+        </p>
+      </description>
+    </release>
+    <release version="0.1" date="2026-11-19">
+      <description>
+        <p>First release: tagging, renaming, and album lookup.</p>
+      </description>
+    </release>
+  </releases>
+</component>

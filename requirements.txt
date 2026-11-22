@@ -1,0 +1,5 @@
+# Both ship as Mint/Ubuntu packages; apt is preferred over pip here because
+# the system Python is PEP 668 externally-managed.
+#   sudo apt install python3-pyqt6 python3-mutagen python3-pytest
+mutagen>=1.45
+PyQt6>=6.4

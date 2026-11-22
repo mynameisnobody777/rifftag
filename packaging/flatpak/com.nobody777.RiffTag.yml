@@ -1,0 +1,145 @@
+# Flatpak manifest for RiffTag.
+#
+# Build and install locally:
+#   flatpak install -y flathub org.freedesktop.Platform//25.08 org.freedesktop.Sdk//25.08
+#   flatpak-builder --user --install --force-clean build com.nobody777.RiffTag.yml
+#   flatpak run com.nobody777.RiffTag
+#
+# Two decisions worth knowing before changing anything here:
+#
+# 1. The runtime is freedesktop, not KDE. PyQt6's wheels carry their own
+#    Qt6, so building on a runtime that also ships Qt would mean two copies
+#    of it in the image. freedesktop + wheels is one copy and no source
+#    build of PyQt against a system Qt.
+#
+# 2. ffmpeg is built here, deliberately. The org.freedesktop.Platform
+#    .ffmpeg-full extension ships *libraries* only — its bin/ contains one
+#    binary, dec265 — and RiffTag's converter and loudness check both shell
+#    out to the ffmpeg command. Without this module those two features are
+#    dead inside the sandbox. It is configured down to only what RiffTag
+#    actually asks for: libmp3lame, and ffmpeg's own flac, aac and pcm
+#    encoders, with the ebur128 filter for the loudness reading.
+app-id: com.nobody777.RiffTag
+runtime: org.freedesktop.Platform
+runtime-version: '25.08'
+sdk: org.freedesktop.Sdk
+command: rifftag
+
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # Playback.
+  - --socket=pulseaudio
+  # MusicBrainz, Discogs and the Cover Art Archive.
+  - --share=network
+  # It edits the user's own music library, wherever that lives. Music alone
+  # is not enough: Dave's is on a network share mounted elsewhere.
+  - --filesystem=home
+  - --filesystem=xdg-music
+
+modules:
+  # ---- lame: the one encoder ffmpeg cannot provide by itself -----------
+  - name: lame
+    config-opts:
+      - --disable-static
+      - --enable-nasm
+      - --disable-frontend
+    sources:
+      - type: archive
+        url: https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz
+        sha256: ddfe36cab873794038ae2c1210557ad34857a4b6bdc515785d1da9e175b1da1e
+    cleanup:
+      - /include
+      - /lib/pkgconfig
+      - '*.la'
+
+  # ---- ffmpeg, cut down to what RiffTag uses ---------------------------
+  - name: ffmpeg
+    config-opts:
+      - --disable-static
+      - --enable-shared
+      - --disable-doc
+      - --disable-debug
+      - --disable-everything
+      - --disable-network
+      - --disable-autodetect
+      # Encoding targets offered in the Convert dialog
+      - --enable-libmp3lame
+      - --enable-encoder=libmp3lame,flac,aac,pcm_s16le,pcm_s24le
+      # Decoding the formats RiffTag can read
+      - --enable-decoder=mp3,flac,aac,alac,vorbis,opus,pcm_s16le,pcm_s24le,pcm_s32le,pcm_f32le,wmav1,wmav2,ape,wavpack,musepack7,musepack8,tta
+      - --enable-demuxer=mp3,flac,ogg,mov,wav,aiff,asf,ape,wv,mpc,mpc8,tta,dsf
+      - --enable-muxer=mp3,flac,ipod,mov,wav,null
+      - --enable-parser=mpegaudio,flac,aac,vorbis,opus
+      - --enable-protocol=file
+      # The release check reads integrated LUFS and true peak from this
+      - --enable-filter=aresample,aformat,anull,ebur128,loudnorm,atrim,volume
+      - --enable-swresample
+      - --enable-gpl
+    sources:
+      - type: archive
+        url: https://ffmpeg.org/releases/ffmpeg-7.1.5.tar.xz
+        sha256: de668509caf9e35e3cd162473441fdb29538c6d96ed080292b3cf9e6fc5d558f
+    cleanup:
+      - /include
+      - /lib/pkgconfig
+      - /share/ffmpeg/examples
+
+  # ---- python dependencies, pinned by hash ----------------------------
+  - name: python3-deps
+    buildsystem: simple
+    build-commands:
+      - pip3 install --no-index --no-deps --prefix=${FLATPAK_DEST} mutagen-1.48.1-py3-none-any.whl
+      - pip3 install --no-index --no-deps --prefix=${FLATPAK_DEST} pyqt6_sip-13.13.1-cp313-cp313-manylinux1_x86_64.manylinux_2_5_x86_64.whl
+      - pip3 install --no-index --no-deps --prefix=${FLATPAK_DEST} pyqt6_qt6-6.12.0-py3-none-manylinux_2_34_x86_64.whl
+      - pip3 install --no-index --no-deps --prefix=${FLATPAK_DEST} pyqt6-6.12.1-cp310-abi3-manylinux_2_34_x86_64.whl
+    sources:
+      - type: file
+        url: https://files.pythonhosted.org/packages/47/d8/a29e4e3991765e7ce4ed1f7e4074fe1ba9da03e0048639734de60f9cadb9/mutagen-1.48.1-py3-none-any.whl
+        sha256: 4f077fe87d3fc7fba259aa63d8c026b18382ca6a42ef37c61e16f1b1b5b82fe7
+      - type: file
+        url: https://files.pythonhosted.org/packages/d5/fb/97ba2fa6370b93b9595f0dcd78e1a99451853c9a4dc3b545698d90c35694/pyqt6_sip-13.13.1-cp313-cp313-manylinux1_x86_64.manylinux_2_5_x86_64.whl
+        sha256: 50b6d3a20076457ac1675a235721947b6fd9493017d36b6ef42397a8f38da0f6
+      - type: file
+        url: https://files.pythonhosted.org/packages/d1/e5/c296a9bcde5ef9bbbc5249079422266ccd9c583d117c27d0e832861e9767/pyqt6_qt6-6.12.0-py3-none-manylinux_2_34_x86_64.whl
+        sha256: b76e9962e83cf7daff9bb7ab169c804f37b77ab2d7393d3b380351f5a2441ee0
+      - type: file
+        url: https://files.pythonhosted.org/packages/68/2a/869f7452ba0368b4e1ddbe9679f6fbf1ade5251861a87e1f58acd4215e1b/pyqt6-6.12.1-cp310-abi3-manylinux_2_34_x86_64.whl
+        sha256: b432aa5ffbdaf90a0b909fd47cb1aa908808ae20928561beed0db9fe2ac6347e
+
+  # ---- RiffTag itself --------------------------------------------------
+  - name: rifftag
+    buildsystem: simple
+    build-commands:
+      # The package goes where the runtime's python will find it, and the
+      # artwork under /app/share/rifftag — which splash._find_assets()
+      # already looks for via sys.prefix.
+      - install -Dm644 -t ${FLATPAK_DEST}/share/rifftag/assets assets/*.png
+      - |
+        SITE=$(python3 -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
+        mkdir -p ${FLATPAK_DEST}${SITE#/usr}
+        cp -r rifftag ${FLATPAK_DEST}${SITE#/usr}/
+      - install -Dm755 rifftag.sh ${FLATPAK_DEST}/bin/rifftag
+      - install -Dm644 com.nobody777.RiffTag.desktop -t ${FLATPAK_DEST}/share/applications
+      - install -Dm644 com.nobody777.RiffTag.metainfo.xml -t ${FLATPAK_DEST}/share/metainfo
+      - |
+        for px in 16 22 24 32 48 64 128 256 512; do
+          install -Dm644 assets/icon-$px.png \
+            ${FLATPAK_DEST}/share/icons/hicolor/${px}x${px}/apps/com.nobody777.RiffTag.png
+        done
+    sources:
+      - type: archive
+        url: https://rifftag.nobody777.com/downloads/rifftag-0.2-source.tar.gz
+        sha256: 634f93f9d86076b2e7446f59c7be848598c05bac9cc7e2f68f547b57035a1a3b
+        strip-components: 1
+      # The launcher, desktop entry and AppStream data live beside the
+      # manifest, not inside the app tarball — that is how a Flathub repo is
+      # laid out, and it means they can be fixed without cutting a release.
+      - type: file
+        path: rifftag.sh
+      - type: file
+        path: com.nobody777.RiffTag.desktop
+      - type: file
+        path: com.nobody777.RiffTag.metainfo.xml
