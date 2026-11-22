@@ -425,6 +425,12 @@
   @media (prefers-reduced-motion: reduce) { .to-top { transition: none; } }
   @media (max-width: 560px) { .to-top span { display: none; } .to-top { padding: 12px; } }
 
+  .visits {
+    font: 400 .8rem/1.5 var(--mono); color: var(--fg-dim);
+    margin-top: 18px; font-variant-numeric: tabular-nums;
+  }
+  .visits b { color: var(--fg); font-weight: 500; }
+
   footer { border-top: 1px solid var(--rule); padding-block: 36px 56px; color: var(--fg-dim); font-size: .9rem; }
   footer .split { align-items: start; }
   footer a { color: var(--fg-dim); }
@@ -697,6 +703,12 @@
           </div>
         </div>
         <p class="section-lede" style="margin-top:28px">
+          Something broken, or behaving oddly?
+          <a href="https://github.com/mynameisnobody777/rifftag/issues">Report
+          it on GitHub</a> — public, so the answer helps whoever hits it next.
+        </p>
+
+        <p class="section-lede" style="margin-top:14px">
           The GPL gives you the right to the source, so it sits beside the
           builds rather than being available on request. Read it on
           <a href="https://github.com/mynameisnobody777/rifftag">GitHub</a>,
@@ -734,7 +746,10 @@
     <div>
       <p class="eyebrow">RiffTag</p>
       <p>GPL-3.0-or-later. Use it, study it, change it, share it.<br>
-        Source on <a href="https://github.com/mynameisnobody777/rifftag">GitHub</a>.</p>
+        Source and
+        <a href="https://github.com/mynameisnobody777/rifftag/issues">bug
+        reports</a> on
+        <a href="https://github.com/mynameisnobody777/rifftag">GitHub</a>.</p>
     </div>
     <div>
       <p>Built by <a href="https://nobody777.com">Dave Yeubanks</a>, an independent
@@ -743,6 +758,7 @@
         interface by Qt. Album details from
         <a href="https://musicbrainz.org/">MusicBrainz</a> and
         <a href="https://www.discogs.com/">Discogs</a>.</p>
+      <p class="visits" id="visits" hidden>Visitors: <b id="visit-count">—</b></p>
     </div>
   </div>
 </footer>
@@ -956,6 +972,28 @@
     window.addEventListener('resize', onScroll, { passive: true });
     calm.addEventListener('change', position);
     position();
+  })();
+
+  // ---- the visit counter ----
+  // Dave's own counter service, the same one his other sites use, so every
+  // site's numbers live in one place and this one reports unique visitors
+  // too. Called from here rather than server-side so crawlers are left out.
+  (function () {
+    var line = document.getElementById('visits');
+    var value = document.getElementById('visit-count');
+    if (!line || !value) { return; }
+
+    fetch('https://site-counter.davidyeubanks.workers.dev/?site=rifftag')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data || typeof data.hits !== 'number') { return; }
+        value.textContent = data.hits.toLocaleString();
+        if (typeof data.unique === 'number') {
+          value.textContent += ' · ' + data.unique.toLocaleString() + ' unique';
+        }
+        line.hidden = false;
+      })
+      .catch(function () { /* the page is fine without it */ });
   })();
 
   (function () {
