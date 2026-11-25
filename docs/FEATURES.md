@@ -434,11 +434,15 @@ against.
 4. A proper Mask Editor dialog; the button currently just saves the mask.
 5. Column chooser UI — `OPTIONAL_COLUMNS` exists but nothing exposes it.
 6. Tags synchronisation wizard (ID3v1 ↔ ID3v2).
-7. Nemo right-click action, standing in for the Explorer shell extension.
 
 Done since this list was written: **online album lookup** (MusicBrainz +
-Discogs) and the **filter bar** (wildcards over the file name, any tag field,
-or any field at once).
+Discogs), the **filter bar** (wildcards over the file name, any tag field, or
+any field at once), and **opening a file from the file manager** — right-click
+a song, Open with -> RiffTag, and it opens that song's folder with the song
+selected. That covers what the "Nemo right-click action" entry was asking
+for, through the ordinary MIME association rather than a file-manager plugin,
+and it works the same way on Windows (see
+[../docs/WINDOWS_PORT.md](WINDOWS_PORT.md) for the one-off registration).
 
 **Deliberately not planned:** Amazon import (Tag&Rename removed most of it in
 3.9.15 anyway) and the Windows shell extension.

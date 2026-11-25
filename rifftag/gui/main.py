@@ -9,8 +9,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from PyQt6.QtCore import (QDir, QModelIndex, QSettings, QSize, Qt,
-                          QThread, QTimer)
+from PyQt6.QtCore import (QDir, QItemSelectionModel, QModelIndex, QSettings,
+                          QSize, Qt, QThread, QTimer)
 # QFileSystemModel lives in QtGui in Qt6, not QtWidgets as in Qt5.
 from PyQt6.QtGui import (QAction, QFileSystemModel, QIcon, QKeySequence,
                          QPixmap)
@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
 
 from .about import TAGLINE
 from ..casing import Case
+from ..cli import Target, parse_targets
 from ..masks import MaskError, RenderOptions, parse
 from ..renamer import Status, apply as apply_renames, plan, undo as undo_renames
 from ..tagio import (Picture, TagError, WriteOptions, read, remove_tags,
@@ -42,7 +43,7 @@ from .model import (DEFAULT_COLUMNS, FileListModel, FileListView,
                     LegendPanel, ScanWorker, SectionShadeDelegate, apply_zebra)
 from .player import PlayerPanel
 from .about import AboutDialog
-from .shortcuts import ShortcutsDialog
+from .shortcuts import ShortcutsDialog, repair_shadowed_entry
 from .splash import app_icon, show_splash, wordmark
 from .statusbar import StatusTotals
 from .theme import (Theme, apply as apply_theme, capture_system_palette,
@@ -111,8 +112,18 @@ class PreviewDialog(QDialog):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, target: Target | None = None):
         super().__init__()
+        #: What the command line asked for; see rifftag/cli.py. None means
+        #: "carry on where you left off", which is the no-arguments case.
+        self._startup_target = target
+        #: Files to put the cursor on as soon as the current scan finishes.
+        #: Set here rather than acted on immediately because the scan runs on
+        #: a worker thread: the rows do not exist yet.
+        self._pending_select: tuple[Path, ...] = ()
+        #: Folder the tree is still trying to scroll to; see _directory_loaded.
+        self._reveal_target: Path | None = None
+        self._reveal_queued = False
         self.setWindowTitle(APP)
         self.setWindowIcon(app_icon())
         self.resize(1280, 820)
@@ -164,6 +175,20 @@ class MainWindow(QMainWindow):
             QAbstractItemView.EditTrigger.SelectedClicked
             | QAbstractItemView.EditTrigger.EditKeyPressed)
         self.fs_model.fileRenamed.connect(self._folder_renamed)
+        # QFileSystemModel lists a directory on a worker thread, so at
+        # startup the folder we want to scroll to has no rows yet and
+        # _reveal silently does nothing. Re-run it as each ancestor lands.
+        self.fs_model.directoryLoaded.connect(self._directory_loaded)
+        # rowsInserted as well as directoryLoaded: the model also grows
+        # without announcing a finished directory (fetchMore, and the file
+        # watcher), and every row inserted above the target pushes it down.
+        self.fs_model.rowsInserted.connect(self._directory_loaded)
+        # And layoutChanged: QFileSystemModel re-sorts a directory once it
+        # has finished listing it, which moves our row without inserting
+        # anything. That re-sort is what pushed the target row from the
+        # seventh visible line to the fifty-second with the scroll bar
+        # untouched — the one that made this look unfixable.
+        self.fs_model.layoutChanged.connect(self._directory_loaded)
         self.folder_tree.selectionModel().currentChanged.connect(
             lambda *_: QTimer.singleShot(0, self.show_current_folder))
 
@@ -768,6 +793,23 @@ class MainWindow(QMainWindow):
             action.setChecked(candidate is theme)
         self._refresh_colours()
 
+    def _follow_desktop_changes(self) -> None:
+        """Repaint when the desktop flips light/dark while we are running.
+
+        Only Qt 6.5 and later have this signal; Mint 22 ships 6.4, where the
+        theme is settled at startup and that is that. Wrapped rather than
+        version-checked so it simply does nothing on the old one.
+        """
+        app = QApplication.instance()
+        if app is None:
+            return
+        try:
+            app.styleHints().colorSchemeChanged.connect(
+                lambda *_: (self._apply_theme(Theme.SYSTEM)
+                            if self.theme is Theme.SYSTEM else None))
+        except AttributeError:
+            pass
+
     def _refresh_colours(self) -> None:
         """Re-derive everything that was computed from the old palette.
 
@@ -1012,17 +1054,108 @@ class MainWindow(QMainWindow):
         geo = self.settings.value("geometry")
         if geo:
             self.restoreGeometry(geo)
+
+        self._follow_desktop_changes()
+
+        target = self._startup_target
+        if target:
+            self.open_target(target)
+            return
+
         last = self.settings.value("folder")
         start = Path(last) if last and Path(last).is_dir() else Path.home()
-        self._reveal(start)
+        self._reveal_when_loaded(start)
         if last and Path(last).is_dir():
             self._open_folder(start)
 
+    def open_target(self, target: Target) -> None:
+        """Show a folder and park the cursor on the files that were asked for.
+
+        This is the "Open with -> RiffTag" path. The selection cannot happen
+        here: _open_folder kicks off a background scan and returns at once,
+        so the request is parked in _pending_select and _scan_done acts on it
+        when the rows actually exist.
+        """
+        if target.folder is None:
+            return
+        self._pending_select = target.files
+        self._reveal_when_loaded(target.folder)
+        self._open_folder(target.folder)
+
+    #: How long the tree keeps chasing a startup folder, in milliseconds.
+    REVEAL_WINDOW_MS = 5000
+
+    def _reveal_when_loaded(self, folder: Path) -> None:
+        """Scroll to a folder, and keep re-scrolling as the tree fills in.
+
+        A path nine levels down — which is where Dave's music lives — is not
+        reachable the instant the window is built. QFileSystemModel lists
+        each directory on a worker thread, so the first attempt scrolls to a
+        row that does not exist yet, and every *later* listing inserts
+        siblings **above** our row and pushes it further down: one scroll is
+        never enough. Measured on the real tree, the target row ended up at
+        y=1098 in a 310px viewport — the panel looked empty.
+
+        So the target is parked and re-revealed on every directory that
+        lands, until either the user takes over or the window below expires.
+        The window is what stops a folder on a slow network mount from
+        yanking the tree around for the rest of the session.
+        """
+        self._reveal_target = folder
+        self._reveal(folder)
+        QTimer.singleShot(self.REVEAL_WINDOW_MS, self._stop_revealing)
+
+    def _stop_revealing(self) -> None:
+        self._reveal_target = None
+
+    def _directory_loaded(self, *_args) -> None:
+        """Any listing can have shifted our row; scroll again if one is due.
+
+        Deliberately not filtered to ancestors of the target: a sibling of an
+        ancestor being listed is exactly the case that pushes the row down.
+
+        Queued rather than run here. ``directoryLoaded`` arrives before the
+        view has laid the new rows out, so a scroll from inside it is
+        computed against the old geometry and lands in the wrong place —
+        which is what made the first attempt at this look like it had done
+        nothing at all.
+        """
+        if self._reveal_target is None or self._reveal_queued:
+            return
+        self._reveal_queued = True      # coalesce a burst of insertions
+        QTimer.singleShot(0, self._reveal_pending)
+
+    def _reveal_pending(self) -> None:
+        self._reveal_queued = False
+        if self._reveal_target is not None:
+            self._reveal(self._reveal_target)
+
     def _reveal(self, folder: Path) -> None:
-        """Scroll the folder tree to a path and expand down to it."""
+        """Scroll the folder tree to a path and expand down to it.
+
+        Every ancestor is expanded from the root downwards, not just the
+        folder itself. A row inside a collapsed parent has no position in the
+        view, so without this the scroll goes nowhere and — worse — the
+        sideways nudge in show_current_folder still runs, dragging the column
+        off to the indent of a row nobody can see. Nine levels down, which is
+        where Dave's music lives, that left the panel looking empty.
+        """
         index = self.fs_model.index(str(folder))
         if not index.isValid():
             return
+        chain = []
+        parent = index.parent()
+        while parent.isValid():
+            chain.append(parent)
+            parent = parent.parent()
+        for ancestor in reversed(chain):
+            self.folder_tree.expand(ancestor)
+        # QTreeView lays rows out lazily. Expanding ten ancestors only
+        # *schedules* the layout, so scrollTo would otherwise work out where
+        # to go from the geometry as it was before any of them opened — the
+        # scroll then looks right for an instant and the row drifts a
+        # thousand pixels down the moment the real layout runs.
+        self.folder_tree.executeDelayedItemsLayout()
         self.folder_tree.setCurrentIndex(index)
         self.folder_tree.expand(index)
         self.folder_tree.scrollTo(
@@ -1085,6 +1218,7 @@ class MainWindow(QMainWindow):
     # --- scanning ---
 
     def _folder_clicked(self, index: QModelIndex) -> None:
+        self._stop_revealing()          # the user is steering now
         self._open_folder(Path(self.fs_model.filePath(index)))
 
     def _folder_renamed(self, parent: str, old: str, new: str) -> None:
@@ -1114,7 +1248,7 @@ class MainWindow(QMainWindow):
         if not folder.is_dir():
             QMessageBox.warning(self, APP, f"No such folder:\n{folder}")
             return
-        self._reveal(folder)
+        self._reveal_when_loaded(folder)
         self._open_folder(folder)
 
     def _refresh_tree(self) -> None:
@@ -1125,7 +1259,7 @@ class MainWindow(QMainWindow):
             # dropping the root path and setting it again is what makes it
             # notice folders created outside the app.
             self.fs_model.setRootPath("")
-            self._reveal(current)
+            self._reveal_when_loaded(current)
         self._rescan()
 
     # --- filtering ---
@@ -1223,6 +1357,34 @@ class MainWindow(QMainWindow):
         self.totals.set_selected(self.selected_tracks())
         self.statusBar().showMessage(f"{n} file(s)")
         self._stop_scan()
+        self._select_pending()
+
+    def _select_pending(self) -> None:
+        """Select and scroll to the files a command line asked for, once.
+
+        Cleared whatever the outcome: if the file was filtered out or has
+        since been renamed there is nothing to select, and leaving the
+        request parked would make the *next* folder the user opens jump.
+        """
+        wanted, self._pending_select = self._pending_select, ()
+        if not wanted:
+            return
+        indexes = [i for i in (self.model.index_for_path(p) for p in wanted)
+                   if i.isValid()]
+        if not indexes:
+            return
+        selection = self.files.selectionModel()
+        selection.clearSelection()
+        for index in indexes:
+            selection.select(
+                index,
+                QItemSelectionModel.SelectionFlag.Select
+                | QItemSelectionModel.SelectionFlag.Rows)
+        selection.setCurrentIndex(
+            indexes[0], QItemSelectionModel.SelectionFlag.NoUpdate)
+        self.files.scrollTo(
+            indexes[0], QAbstractItemView.ScrollHint.PositionAtCenter)
+        self.files.setFocus()
 
     def _stop_scan(self) -> None:
         if self._worker:
@@ -1713,9 +1875,27 @@ class MainWindow(QMainWindow):
             self.files.resizeColumnToContents(i)
 
 
+def repair_associations() -> None:
+    """Linux only, and silent unless something was actually wrong."""
+    import sys
+    if not sys.platform.startswith("linux"):
+        return
+    try:
+        note = repair_shadowed_entry()
+    except Exception:           # never let a cosmetic repair stop the app
+        return
+    if note:
+        print(f"{APP}: {note}")
+
+
 def run(argv: list[str] | None = None) -> int:
     import sys
-    app = QApplication(argv if argv is not None else sys.argv)
+    argv = list(argv) if argv is not None else list(sys.argv)
+    # Read the file arguments before Qt sees them. QApplication strips its
+    # own options out of the list it is handed, and a path that happens to
+    # follow one of them would go with it.
+    target = parse_targets(argv)
+    app = QApplication(argv)
     app.setApplicationName(APP)
     app.setOrganizationName(ORG)
     # Before the palette is captured: changing style changes the standard
@@ -1736,10 +1916,14 @@ def run(argv: list[str] | None = None) -> int:
         splash.say("Starting…")
         app.processEvents()
 
-    window = MainWindow()
+    window = MainWindow(target)
 
     def reveal() -> None:
         window.show()
+        # After the window is up: a stale user .desktop silently disables the
+        # file associations, and the repair touches the disk. See
+        # shortcuts.repair_shadowed_entry.
+        QTimer.singleShot(0, repair_associations)
         if splash is not None:
             splash.finish_for(window)
         QTimer.singleShot(300, window.maybe_offer_shortcuts)

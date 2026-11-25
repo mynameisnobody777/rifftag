@@ -30,33 +30,34 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QLabel,
                              QVBoxLayout)
 
+from ..desktopfile import desktop_entry_text as build_entry
+
 ENTRY = "rifftag.desktop"
 APPLET = "panel-launchers@cinnamon.org"
 APPLET_DIR = Path.home() / ".config/cinnamon/spices" / APPLET
 
 
-def desktop_entry_text() -> str:
-    """The .desktop body, pointing at however this copy is being run.
+def exec_line() -> str:
+    """How to launch this copy.
 
     An installed package has ``rifftag`` on PATH; a source checkout does not,
     so the entry has to carry the PYTHONPATH that makes it importable.
+    ``%F`` on the end is what hands the clicked file to ``rifftag/cli.py``.
     """
     if shutil.which("rifftag"):
-        exec_line = "rifftag %F"
-    else:
-        root = Path(__file__).resolve().parents[2]
-        exec_line = f"env PYTHONPATH={root} python3 -m rifftag %F"
-    return (
-        "[Desktop Entry]\n"
-        "Type=Application\n"
-        "Name=RiffTag\n"
-        "GenericName=Music Tag Editor\n"
-        "Comment=Edit. Rename. Organize.\n"
-        f"Exec={exec_line}\n"
-        "Icon=rifftag\n"
-        "Terminal=false\n"
-        "Categories=AudioVideo;Audio;Music;\n"
-    )
+        return "rifftag %F"
+    root = Path(__file__).resolve().parents[2]
+    return f"env PYTHONPATH={root} python3 -m rifftag %F"
+
+
+def desktop_entry_text() -> str:
+    """The .desktop body, pointing at however this copy is being run.
+
+    The MIME list comes from ``rifftag/desktopfile.py`` so that this entry,
+    the packaged one and the Flatpak one cannot disagree — which they did,
+    and which is why "Open with" had no RiffTag in it for a .wav.
+    """
+    return build_entry(exec_line())
 
 
 def desktop_dir() -> Path:
@@ -71,14 +72,75 @@ def desktop_dir() -> Path:
     return Path.home() / "Desktop"
 
 
+def user_entry_path() -> Path:
+    return Path.home() / ".local/share/applications" / ENTRY
+
+
+def system_entry_path() -> Path:
+    return Path("/usr/share/applications") / ENTRY
+
+
 def ensure_user_entry() -> Path:
-    """Make sure ~/.local/share/applications has an entry to point at."""
-    target = Path.home() / ".local/share/applications" / ENTRY
-    if shutil.which("rifftag") and Path("/usr/share/applications", ENTRY).exists():
-        return Path("/usr/share/applications") / ENTRY
+    """Make sure some entry exists to point a shortcut at."""
+    if shutil.which("rifftag") and system_entry_path().exists():
+        return system_entry_path()
+    target = user_entry_path()
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(desktop_entry_text())
+    refresh_desktop_database()
     return target
+
+
+def refresh_desktop_database() -> None:
+    """Rebuild the user's application cache. Failure is not interesting.
+
+    Without this the "Open with" list keeps whatever it cached until the next
+    sign-in, which makes a fixed association look like it is still broken.
+    """
+    if not shutil.which("update-desktop-database"):
+        return
+    try:
+        subprocess.run(["update-desktop-database",
+                        str(user_entry_path().parent)],
+                       capture_output=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def repair_shadowed_entry() -> str | None:
+    """Deal with a user entry that is hiding the packaged one.
+
+    This is a real repair, not a hypothetical. A desktop entry in
+    ``~/.local/share/applications`` **completely replaces** the one in
+    ``/usr/share/applications`` with the same file name — it does not merge
+    with it. Dave ran RiffTag from a source checkout first, which wrote a
+    user entry; that version had no ``MimeType`` line at all, so once the
+    .deb was installed the packaged entry's associations never took effect
+    and no amount of fixing the package could make "Open with" work.
+
+    Only ever touches a file that is recognisably ours. Returns a sentence
+    for the log, or None if there was nothing to do.
+    """
+    user, system = user_entry_path(), system_entry_path()
+    if not system.exists() or not user.exists():
+        return None
+    try:
+        body = user.read_text()
+    except OSError:
+        return None
+    if "Name=RiffTag" not in body:
+        return None                 # somebody else's file; leave it alone
+    if body == system.read_text():
+        return None                 # a duplicate, but a harmless one
+    try:
+        # Kept, not deleted: it costs nothing and it is the user's file.
+        user.with_suffix(".desktop.bak").write_text(body)
+        user.unlink()
+    except OSError as exc:
+        return f"Could not remove the stale entry at {user}: {exc}"
+    refresh_desktop_database()
+    return (f"Removed a stale {ENTRY} from {user.parent} that was hiding the "
+            f"installed one (backed up alongside it).")
 
 
 def install_desktop_shortcut() -> tuple[bool, str]:

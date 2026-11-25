@@ -35,10 +35,15 @@ echo "   installed: $(dpkg-query -W -f='${Version}' rifftag)"
 
 echo "-- source tarball"
 mkdir -p web/downloads
-rm -f web/downloads/rifftag-*-source.tar.gz
+# Both are version-stamped, so without this the previous release's files stay
+# downloadable for ever and turn up in SHA256SUMS beside the current ones.
+rm -f web/downloads/rifftag-*-source.tar.gz web/downloads/rifftag_*_all.deb
 # web/ is excluded: it is the website, not the program, and it carries the
 # videos. Everything needed to build and run RiffTag is in the rest.
-tar --exclude='build' --exclude='dist' --exclude='web' --exclude='.wrangler' \
+# .git is excluded too: the GPL obliges us to ship the source, not the
+# history, and GitHub already has the history. Leaving it in had quietly
+# grown this tarball from 7.6 MB to 33 MB.
+tar --exclude='.git' --exclude='build' --exclude='dist' --exclude='web' --exclude='.wrangler' \
     --exclude='wrangler.jsonc' --exclude='.pytest_cache' --exclude='__pycache__' \
     -czf "web/downloads/rifftag-${VERSION}-source.tar.gz" -C "$(dirname "$ROOT")" rifftag
 cp "dist/rifftag_${VERSION}_all.deb" web/downloads/
@@ -55,7 +60,11 @@ fi
 
 echo "-- staged"
 ls -lh web/downloads | tail -n +2 | awk '{printf "   %-36s %s\n", $9, $5}'
-( cd web/downloads && sha256sum ./* > SHA256SUMS && echo "   SHA256SUMS written" )
+# Named explicitly rather than ./* — the glob caught SHA256SUMS itself, which
+# listed a checksum of a file that no longer had it.
+( cd web/downloads \
+  && sha256sum "rifftag_${VERSION}_all.deb" "rifftag-${VERSION}-source.tar.gz" \
+       > SHA256SUMS && echo "   SHA256SUMS written" )
 
 if [ "$DEPLOY" = "--deploy" ]; then
     echo "-- deploying"

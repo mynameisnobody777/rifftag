@@ -23,7 +23,7 @@ from ..webimport import __version__ as _web_version
 from .splash import logo_path
 from .theme import is_dark
 
-VERSION = "0.2"
+VERSION = "0.2.1"
 TAGLINE = "Edit. Rename. Organize."
 
 #: Where "support RiffTag" points. One link, in this dialog, and nowhere

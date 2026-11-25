@@ -497,6 +497,22 @@ class FileListModel(QAbstractItemModel):
                 return i
         return -1
 
+    def index_for_path(self, path: Path) -> QModelIndex:
+        """The row for a file, or an invalid index if it is not on screen.
+
+        Used to put the cursor on the file the user right-clicked. Walks
+        ``children`` rather than ``all_children`` deliberately: a file hidden
+        by the filter has no row to select, and inventing one would scroll
+        the view to nothing.
+        """
+        folder = self._by_folder.get(path.parent)
+        if folder is None:
+            return QModelIndex()
+        for child in folder.children:
+            if child.path == path:
+                return self.createIndex(child.row, 0, child)
+        return QModelIndex()
+
     # --- check-box selection ---
 
     def set_use_checkboxes(self, on: bool) -> None:

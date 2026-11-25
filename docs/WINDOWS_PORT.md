@@ -175,6 +175,38 @@ pyinstaller --noconfirm --windowed --name RiffTag `
 Expect 100–150 MB because Qt is bundled rather than borrowed from the distro.
 Inno Setup is the usual next step for a real installer with file associations.
 
+### File associations, until there is an installer
+
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging\register-windows.ps1 -Exe C:\RiffTagApp\RiffTag.exe
+powershell -ExecutionPolicy Bypass -File packaging\register-windows.ps1 -Unregister
+```
+
+Everything goes under `HKCU\Software\Classes`, so no administrator is
+needed and no other user on the machine is touched. It registers a
+`RiffTag.AudioFile` ProgID, an `Applications\RiffTag.exe` entry (that is
+what makes the menu say "RiffTag" rather than the bare exe name) and an
+`OpenWithProgids` value for every audio extension RiffTag claims.
+
+**The extension list in that script is generated**, from
+`rifftag/desktopfile.py`, which is the same list the Linux `.desktop` entries
+are built from. Do not edit it in the `.ps1`; edit the module and regenerate,
+or `tests/test_desktopfile.py` will fail. The two lists had drifted apart
+once and the result was RiffTag missing from the Open-with menu for `.wav`.
+
+It does **not** make RiffTag the default for `.mp3`, deliberately: taking the
+double-click away from someone's music player is not what "let me right-click
+a file and tag it" means, and Windows 10/11 will not let a program seize a
+default anyway — the user has to pick it in Settings.
+
+Two things that will bite a future edit: `"%1"` must stay quoted in the
+command, or a path with a space in it (which is most music) arrives as
+several arguments; and the exe path is baked into the registry, so the script
+has to be re-run after the exe is moved or rebuilt elsewhere.
+
+The app end of this is `rifftag/cli.py` — it is shared with Linux and has no
+Windows-specific code.
+
 ## What not to re-decide
 
 The Linux side has paid for these already; they are in `../README.md` with the

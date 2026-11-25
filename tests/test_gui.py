@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (QApplication, QLabel,              # noqa: E402
                              QLineEdit, QMenu)
 
 from rifftag import tagio                                       # noqa: E402
+from rifftag.cli import parse_targets                           # noqa: E402
 from rifftag.gui.main import MainWindow                         # noqa: E402
 from rifftag.gui.model import FileListModel                     # noqa: E402
 from rifftag.gui.tabs import MultiTagTab                        # noqa: E402
@@ -977,13 +978,22 @@ def test_colour_bearing_widgets_avoid_stylesheets(qapp):
     w.close()
 
 
-def test_system_theme_restores_the_desktop_palette(qapp):
+def test_system_theme_restores_the_desktop_palette(qapp, monkeypatch):
+    """Switching back to Follow-desktop undoes an explicit theme.
+
+    The desktop's answer is pinned here. Without that this test depends on
+    the machine running it: offscreen Qt hands over a light palette, and on a
+    dark desktop palette_for() is *supposed* to correct it — which is the
+    whole of the follow-the-desktop fix, covered in tests/test_theme.py.
+    """
     from PyQt6.QtGui import QPalette
     from rifftag.gui import theme as theme_mod
     from rifftag.gui.theme import Theme
 
     theme_mod.capture_system_palette(qapp)
     original = QPalette(theme_mod._system_palette)
+    monkeypatch.setattr(theme_mod, "_forced_preference",
+                        theme_mod.is_dark(original))
     w = MainWindow()
     w._apply_theme(Theme.DARK)
     w._apply_theme(Theme.SYSTEM)
@@ -3872,3 +3882,227 @@ def test_the_asset_search_covers_a_flatpak_install(qapp):
 
     source = inspect.getsource(splash._find_assets)
     assert "/app/share/rifftag/assets" in source
+
+
+# --- "Open with -> RiffTag" -------------------------------------------
+
+
+def test_open_with_a_file_opens_its_folder_and_selects_it(qapp, library):
+    """The whole point of the file-argument support.
+
+    _scan is used instead of the real worker thread so the test does not race
+    it; _select_pending is what _scan_done calls once rows exist, and it is
+    the part under test.
+    """
+    folder, files = library
+    target = parse_targets(["rifftag", str(files[1])])
+    w = MainWindow(target)
+    w.open_target(target)
+    _scan(w, folder)
+    w.files.expandAll()
+    w._select_pending()
+
+    assert w.folder == folder
+    assert [t.path for t in w.selected_tracks()] == [files[1]]
+    assert w.files.currentIndex().isValid()
+    w.close()
+
+
+def test_open_with_several_files_selects_them_all(qapp, library):
+    folder, files = library
+    target = parse_targets(["rifftag", str(files[0]), str(files[2])])
+    w = MainWindow(target)
+    w.open_target(target)
+    _scan(w, folder)
+    w.files.expandAll()
+    w._select_pending()
+
+    assert sorted(t.path for t in w.selected_tracks()) == sorted(
+        [files[0], files[2]])
+    w.close()
+
+
+def test_open_with_a_folder_opens_it_with_nothing_selected(qapp, library):
+    folder, _files = library
+    target = parse_targets(["rifftag", str(folder)])
+    w = MainWindow(target)
+    w.open_target(target)
+    _scan(w, folder)
+    w._select_pending()
+
+    assert w.folder == folder
+    assert w.selected_tracks() == []
+    w.close()
+
+
+def test_a_pending_selection_is_spent_once(qapp, library):
+    """Otherwise the next folder the user opens would jump to an old file."""
+    folder, files = library
+    target = parse_targets(["rifftag", str(files[0])])
+    w = MainWindow(target)
+    w.open_target(target)
+    _scan(w, folder)
+    w.files.expandAll()
+    w._select_pending()
+    assert w._pending_select == ()
+
+    w.files.clearSelection()
+    w._select_pending()
+    assert w.selected_tracks() == []
+    w.close()
+
+
+def test_no_arguments_still_restores_the_last_folder(qapp, library):
+    """The ordinary launch must not have been broken by any of this."""
+    folder, _files = library
+    w = MainWindow()
+    w.settings.setValue("folder", str(folder))
+    w._restore()
+    assert w.folder == folder
+    w.close()
+
+
+def test_the_tree_keeps_trying_to_reveal_a_deep_folder(qapp, tmp_path):
+    """QFileSystemModel settles long after the window is up.
+
+    It lists directories on a worker thread and *re-sorts* them when each
+    listing finishes, so the target row both appears late and then moves.
+    Every model change has to re-scroll, the scroll has to be queued so it
+    runs after the view has laid out, and a burst of changes must collapse
+    into one scroll rather than one each.
+    """
+    deep = tmp_path / "a" / "b" / "c"
+    deep.mkdir(parents=True)
+    w = MainWindow()
+    seen = []
+    w._reveal = lambda folder: seen.append(folder)
+
+    w._reveal_when_loaded(deep)
+    assert w._reveal_target == deep
+    assert seen == [deep], "the first attempt is immediate"
+
+    w._directory_loaded()
+    w._directory_loaded()
+    assert seen == [deep], "a burst collapses into one queued scroll"
+    assert w._reveal_queued
+
+    w._reveal_pending()
+    assert seen == [deep, deep]
+    assert not w._reveal_queued, "the next change may queue another"
+
+    w._directory_loaded()
+    w._reveal_pending()
+    assert seen == [deep, deep, deep]
+
+    w._stop_revealing()
+    w._directory_loaded()
+    w._reveal_pending()
+    assert len(seen) == 3, "a spent target is not chased any more"
+    w.close()
+
+
+def test_clicking_a_folder_stops_the_tree_chasing_the_startup_one(qapp,
+                                                                  tmp_path):
+    """Otherwise the tree would yank itself back while the user is browsing."""
+    deep = tmp_path / "a" / "b"
+    deep.mkdir(parents=True)
+    w = MainWindow()
+    w._reveal = lambda folder: None
+    w._reveal_when_loaded(deep)
+    w._folder_clicked(w.fs_model.index(str(tmp_path)))
+    assert w._reveal_target is None
+    w.close()
+
+
+# --- desktop entry repair ----------------------------------------------
+
+
+def test_a_stale_user_entry_that_hides_the_packaged_one_is_removed(
+        qapp, tmp_path, monkeypatch):
+    """The reason "Open with" stayed broken however the package was fixed.
+
+    An entry in ~/.local/share/applications REPLACES the one in
+    /usr/share/applications with the same name — it does not merge. The one
+    Dave's source checkout wrote had no MimeType line at all, so the packaged
+    entry's associations never applied.
+    """
+    from rifftag.gui import shortcuts
+
+    user = tmp_path / "user" / "rifftag.desktop"
+    system = tmp_path / "system" / "rifftag.desktop"
+    user.parent.mkdir(parents=True)
+    system.parent.mkdir(parents=True)
+    system.write_text(shortcuts.desktop_entry_text())
+    user.write_text("[Desktop Entry]\nName=RiffTag\nExec=rifftag\n")
+
+    monkeypatch.setattr(shortcuts, "user_entry_path", lambda: user)
+    monkeypatch.setattr(shortcuts, "system_entry_path", lambda: system)
+    monkeypatch.setattr(shortcuts, "refresh_desktop_database", lambda: None)
+
+    note = shortcuts.repair_shadowed_entry()
+    assert note and "stale" in note
+    assert not user.exists()
+    assert user.with_suffix(".desktop.bak").exists(), "the file is kept"
+
+
+def test_a_matching_user_entry_is_left_alone(qapp, tmp_path, monkeypatch):
+    from rifftag.gui import shortcuts
+
+    user = tmp_path / "user" / "rifftag.desktop"
+    system = tmp_path / "system" / "rifftag.desktop"
+    user.parent.mkdir(parents=True)
+    system.parent.mkdir(parents=True)
+    body = shortcuts.desktop_entry_text()
+    system.write_text(body)
+    user.write_text(body)
+
+    monkeypatch.setattr(shortcuts, "user_entry_path", lambda: user)
+    monkeypatch.setattr(shortcuts, "system_entry_path", lambda: system)
+
+    assert shortcuts.repair_shadowed_entry() is None
+    assert user.exists()
+
+
+def test_somebody_elses_desktop_file_is_never_touched(qapp, tmp_path,
+                                                      monkeypatch):
+    from rifftag.gui import shortcuts
+
+    user = tmp_path / "user" / "rifftag.desktop"
+    system = tmp_path / "system" / "rifftag.desktop"
+    user.parent.mkdir(parents=True)
+    system.parent.mkdir(parents=True)
+    system.write_text(shortcuts.desktop_entry_text())
+    user.write_text("[Desktop Entry]\nName=Something Else\nExec=other\n")
+
+    monkeypatch.setattr(shortcuts, "user_entry_path", lambda: user)
+    monkeypatch.setattr(shortcuts, "system_entry_path", lambda: system)
+
+    assert shortcuts.repair_shadowed_entry() is None
+    assert user.exists()
+
+
+def test_nothing_to_repair_without_a_packaged_entry(qapp, tmp_path,
+                                                    monkeypatch):
+    """A source checkout's own entry is the only one there is; keep it."""
+    from rifftag.gui import shortcuts
+
+    user = tmp_path / "user" / "rifftag.desktop"
+    user.parent.mkdir(parents=True)
+    user.write_text(shortcuts.desktop_entry_text())
+
+    monkeypatch.setattr(shortcuts, "user_entry_path", lambda: user)
+    monkeypatch.setattr(shortcuts, "system_entry_path",
+                        lambda: tmp_path / "system" / "rifftag.desktop")
+
+    assert shortcuts.repair_shadowed_entry() is None
+    assert user.exists()
+
+
+def test_the_shortcut_entry_carries_the_mime_types_and_the_file_argument(qapp):
+    """A shortcut that cannot receive a file is how this broke."""
+    from rifftag.gui.shortcuts import desktop_entry_text
+    from rifftag.desktopfile import mime_line
+
+    body = desktop_entry_text()
+    assert mime_line() in body
+    assert "%F" in body

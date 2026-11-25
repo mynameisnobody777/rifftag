@@ -59,7 +59,7 @@ withholding the source from the people you sell to is not.
 ```bash
 cd /mnt/claude-brain/apps/rifftag
 PYTHONPATH=. python3 -m rifftag          # or ./rifftag.sh
-PYTHONPATH=. python3 -m pytest tests -q   # 575 tests, ~20s
+PYTHONPATH=. python3 -m pytest tests -q   # 622 tests, ~26s
 ```
 
 Needs `python3-pyqt6` and `python3-mutagen`, plus `python3-pytest` and
@@ -69,8 +69,8 @@ Windows build and a Flatpak manifest.
 To build a shareable package:
 
 ```bash
-./packaging/build-deb.sh                 # -> dist/rifftag_0.2_all.deb  (~5.6 MB)
-sudo dpkg -i dist/rifftag_0.2_all.deb
+./packaging/build-deb.sh                 # -> dist/rifftag_0.2.1_all.deb  (~5.6 MB)
+sudo dpkg -i dist/rifftag_0.2.1_all.deb
 sudo dpkg -r rifftag
 ```
 
@@ -87,6 +87,34 @@ brain share, which silently shipped `Installed-Size: 0`. The script sums
 Captain (or GDebi elsewhere), which pulls `python3-pyqt6` automatically;
 `dpkg -i` just fails on the missing dependency and needs a follow-up
 `sudo apt -f install`.
+
+### Opening a file from the file manager
+
+Right-click a song, **Open with -> RiffTag**, and it opens that song's folder
+with the song selected. Several files selected at once works too, as long as
+they are in one folder.
+
+The `.deb` and the Flatpak both register the audio MIME types and pass `%F`,
+so on Linux there is nothing to set up. The MIME list is **generated** from
+`rifftag/desktopfile.py` into every entry — see the two traps in
+[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md), both of which made this look
+impossible to fix from the package side. On Windows, run
+
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging\register-windows.ps1 -Exe C:\RiffTagApp\RiffTag.exe
+```
+
+once after building. It writes an `OpenWithProgids` association under `HKCU`
+for eighteen audio extensions — no administrator needed, and it deliberately
+does **not** steal the default handler for `.mp3`: "I want to tag this file"
+is not "stop my music player from opening my music". Re-run it after moving
+or rebuilding the exe, because the path is baked into the registry;
+`-Unregister` takes it back out.
+
+The argument parsing is in `rifftag/cli.py`, headless and tested. Two things
+it has to get right: Qt's own options (`-style`, `-platform`) are still in
+`argv`, so only arguments that exist on disk are treated as targets; and
+launchers disagree about paths versus `file://` URIs, so both are accepted.
 
 ### Shortcuts
 
@@ -131,6 +159,6 @@ Bug reports and patches are welcome. The test suite is the contract:
 PYTHONPATH=. python3 -m pytest tests -q
 ```
 
-575 tests, about 20 seconds. Anything that changes behaviour wants a test that
+622 tests, about 26 seconds. Anything that changes behaviour wants a test that
 fails without the change — most of the awkward lessons in
 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) are pinned by one.

@@ -55,19 +55,15 @@ exec python3 -m rifftag "$@"
 LAUNCH
 chmod 755 "$STAGE/usr/bin/$PKG"
 
-cat > "$STAGE/usr/share/applications/$PKG.desktop" <<'DESKTOP'
-[Desktop Entry]
-Type=Application
-Name=RiffTag
-GenericName=Music Tag Editor
-Comment=Edit. Rename. Organize.
-Exec=rifftag %F
-Icon=rifftag
-Terminal=false
-Categories=AudioVideo;Audio;Music;
-MimeType=audio/mpeg;audio/flac;audio/ogg;audio/x-vorbis+ogg;audio/opus;audio/mp4;audio/x-m4a;audio/x-ms-wma;audio/x-wav;audio/x-aiff;audio/x-ape;audio/x-wavpack;audio/x-musepack;
-Keywords=tag;id3;mp3;flac;rename;music;metadata;
-DESKTOP
+# The entry is GENERATED, not written out here, so the MIME list cannot drift
+# from the one the app and the Windows registry script use. That drift is what
+# left RiffTag out of the "Open with" menu for .wav files: the hand-written
+# list said audio/x-wav and shared-mime-info calls them audio/vnd.wave.
+# Single source of truth: rifftag/desktopfile.py.
+PYTHONPATH="$ROOT" python3 -c \
+    'from rifftag.desktopfile import desktop_entry_text; \
+     import sys; sys.stdout.write(desktop_entry_text("rifftag %F"))' \
+    > "$STAGE/usr/share/applications/$PKG.desktop"
 
 # --- metadata ---------------------------------------------------------
 # Summed directly rather than with du: on the CIFS mount this project lives

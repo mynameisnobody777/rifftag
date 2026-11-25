@@ -125,6 +125,81 @@ assumptions, and each has a test.
 * **`VCommentDict.pop()` takes no default argument**, unlike a dict. Use
   `if key in tags: del tags[key]`.
 * **`QFileSystemModel` is in `QtGui` in Qt6**, not `QtWidgets` as in Qt5.
+* **`QFileSystemModel` is still moving long after the window is up**, and it
+  moves in two different ways. It lists each directory on a worker thread
+  (`directoryLoaded`, `rowsInserted`) *and* re-sorts a directory once the
+  listing finishes — and a re-sort emits only `layoutChanged`, no row
+  signals at all. Scrolling to a folder nine levels down therefore has to be
+  retried on all three signals, not just the obvious one: the second attempt
+  parked the target row correctly at y=144 and the later re-sort of
+  `/home/dave` slid it to y=1098 in a 310px viewport, which read as "the
+  folder panel is empty". `MainWindow._reveal_when_loaded` /
+  `_directory_loaded` / `_reveal_pending`, and the retry is queued through
+  `QTimer.singleShot(0, ...)` because the signals arrive *before* the view
+  lays the new rows out. It gives up after `REVEAL_WINDOW_MS` or as soon as
+  the user clicks a folder, so nothing yanks the tree around mid-browse.
+* **`_reveal` must expand every ancestor, from the root down.** A row inside
+  a collapsed parent has no position, so `scrollTo` does nothing — while the
+  sideways nudge in `show_current_folder` still runs and drags the column off
+  to the indent of a row nobody can see.
+* **A desktop entry in `~/.local/share/applications` REPLACES the packaged
+  one of the same name.** It does not merge with it. RiffTag's own
+  "Create shortcuts" feature used to write one with no `MimeType` line at
+  all, so once the .deb was installed its associations never took effect and
+  nothing done to the package could fix it. `shortcuts.repair_shadowed_entry()`
+  removes a stale one (keeping a `.bak`) at startup; `desktop_entry_text()`
+  now always carries the MIME list and `%F`. Check for this first if "Open
+  with" ever looks wrong again:
+
+  ```bash
+  ls -la ~/.local/share/applications/rifftag.desktop
+  gio mime audio/vnd.wave | grep rifftag
+  ```
+
+* **MIME aliases are not resolved when the "Open with" menu is built.**
+  shared-mime-info records `audio/x-wav` as an alias of `audio/vnd.wave`, and
+  claiming only the alias left RiffTag out of the menu for every .wav on the
+  machine. Every spelling has to be listed. Find out what a given machine
+  really calls a file:
+
+  ```bash
+  printf xxxxxxxxxxxxxxxx > /tmp/probe.wav && xdg-mime query filetype /tmp/probe.wav
+  ```
+
+  The list lives in `rifftag/desktopfile.py` and is **generated** into the
+  packaged entry, the Flatpak entry, the development entry and the Windows
+  registry script. `tests/test_desktopfile.py` fails if any of them drifts,
+  or if a format `tagio` can open has no MIME decision at all.
+
+* **Two installs of RiffTag are indistinguishable in the menu.** A Flatpak
+  and a .deb both present an entry called "RiffTag", and picking the stale
+  one looks exactly like the fix not working — which is what happened on
+  2026-11-24. `flatpak list --app | grep -i rifftag` is the one-line check.
+
+* **"Follow desktop" cannot be read off the startup palette.** That was the
+  whole of the light-theme bug. On Windows the app runs under Fusion, whose
+  palette is light *always* — it is a self-contained style, not a native one.
+  On Linux the palette only comes back dark if the XDG settings portal
+  answered over D-Bus, and a process started without
+  `DBUS_SESSION_BUS_ADDRESS` gets light. Reproduce it exactly:
+
+  ```bash
+  env -i DISPLAY=:0 HOME=$HOME XDG_RUNTIME_DIR=/run/user/$(id -u) \
+      PATH=/usr/bin:/bin /usr/bin/rifftag
+  ```
+
+  `theme.desktop_prefers_dark()` asks instead — Qt 6.5's `colorScheme()`,
+  then the Windows registry or the portal, then GTK — and
+  `theme.system_palette()` keeps the captured palette when it agrees (so the
+  desktop's own accent colours survive) and substitutes `_DARK`/`_LIGHT`
+  when it does not.
+* **`color-scheme` alone is not enough on Mint.** It sits at `default` while
+  a dark theme is running, so the *theme name* has to be checked too — and
+  Dave's is `Mint-L-Darker-Aqua`, which is why the match is a `dark`
+  substring rather than a `-dark` suffix. `gsettings` is read by subprocess
+  rather than by importing Gio: dconf reads the user's database file
+  directly when there is no session bus, so it still answers in exactly the
+  stripped environment where the portal does not.
 * **Anything that can raise or block in `closeEvent` must come after
   `_stop_scan()`.** A QThread still running when its window is destroyed
   aborts the whole process, so an exception in the quit-time prompt used to
