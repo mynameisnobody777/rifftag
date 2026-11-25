@@ -436,15 +436,20 @@ Tag&Rename did it. **Copy from Focused File** is still there for re-copying
 after you highlight a different file.
 
 **Cover art comes across as well.** It is part of the tag, and an album's art
-is the same on every track, which is the case this is for. Art has no tick box
-of its own, so it is only taken when the source actually *has* some — a source
-without art must never wipe art the target already had. **Remove** in the Art
-panel undoes it before you Save.
+is the same on every track, which is the case this is for. It has its own
+**Write cover art** tick box under the art, because art has no field to sit a
+box beside: anything that changes the art in that window ticks it — a copy,
+Add…, a drop, or Remove — and unticking it leaves the art on disk alone.
+Unticked whenever the editor loads a file, so an ordinary edit never touches
+art. A source with no art is simply not copied from, so it can never wipe art
+the target already had.
 
-``PER_TRACK_FIELDS`` — Title, Sort Title and Lyrics — are **filled but not
-ticked**: visible, one click away, and not written unless you ask. They belong
+``PER_TRACK_FIELDS`` — Title, Sort Title, Track # and Lyrics — are **filled
+but not ticked**: visible, one click away, and not written unless you ask. They belong
 to the song rather than to the release, which is the thing being copied. Sort
-Title goes with Title because it is the same field.
+Title goes with Title because it is the same field; Track # is there for the
+obvious reason, and the "of N" total goes with it because one tick governs
+both halves of that widget.
 
 Two more rules make it safe to use on an empty file:
 

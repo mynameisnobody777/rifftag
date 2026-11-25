@@ -4389,3 +4389,97 @@ def test_a_source_without_art_does_not_wipe_the_targets(qapp, library):
     assert tagio.read(target).pictures, "the target's own art was wiped"
     dialog.close()
     w.close()
+
+
+def test_the_track_number_is_not_copied(qapp, library):
+    """Copying from track 3 onto track 10 must not number it 3."""
+    from rifftag.gui.tageditor import TagEditorDialog
+
+    folder, source, target = _two_files(library)
+    tagio.write(source, {"track": "3"})
+    tagio.write(target, {"track": "10"})
+    w = MainWindow()
+    w.folder = folder
+    _scan(w, folder)
+    src_track = next(t for t in w.model.all_tracks() if t.path == source)
+    tgt_track = next(t for t in w.model.all_tracks() if t.path == target)
+
+    dialog = TagEditorDialog([tgt_track], w, w.write_options, source=src_track)
+    assert not dialog.checks["track"].isChecked()
+    assert not dialog.commit()
+
+    assert tagio.read(target).values.get("track") == "10", "kept its own number"
+    dialog.close()
+    w.close()
+
+
+def test_unticking_the_art_box_leaves_the_art_on_disk_alone(qapp, library):
+    """Art has no field of its own, so it needed its own tick box."""
+    from rifftag.gui.tageditor import TagEditorDialog
+    from rifftag.tagio import Picture
+
+    folder, source, target = _two_files(library)
+    tagio.write(source, {}, pictures=[Picture(_art_bytes(), "image/png")])
+    w = MainWindow()
+    w.folder = folder
+    _scan(w, folder)
+    src_track = next(t for t in w.model.all_tracks() if t.path == source)
+    tgt_track = next(t for t in w.model.all_tracks() if t.path == target)
+
+    dialog = TagEditorDialog([tgt_track], w, w.write_options, source=src_track)
+    assert dialog.art_check.isChecked(), "a copy ticks it"
+    dialog.art_check.setChecked(False)
+    assert not dialog.commit()
+
+    assert not tagio.read(target).pictures, "art was written despite the untick"
+    assert tagio.read(target).values.get("album") == "Nevermind", \
+        "the rest of the copy still went in"
+    dialog.close()
+    w.close()
+
+
+def test_removing_the_art_ticks_the_box_so_the_removal_is_written(qapp,
+                                                                  library):
+    """Removing is a change to write, not a reason to write nothing."""
+    from rifftag.gui.tageditor import TagEditorDialog
+    from rifftag.tagio import Picture
+
+    folder, _source, target = _two_files(library)
+    tagio.write(target, {}, pictures=[Picture(_art_bytes(), "image/png")])
+    w = MainWindow()
+    w.folder = folder
+    _scan(w, folder)
+    tgt_track = next(t for t in w.model.all_tracks() if t.path == target)
+
+    dialog = TagEditorDialog([tgt_track], w, w.write_options)
+    assert not dialog.art_check.isChecked(), "nothing has changed yet"
+    dialog._remove_art()
+    assert dialog.art_check.isChecked()
+    assert not dialog.commit()
+
+    assert not tagio.read(target).pictures
+    dialog.close()
+    w.close()
+
+
+def test_the_art_box_starts_unticked_so_a_plain_edit_leaves_art_alone(
+        qapp, library):
+    from rifftag.gui.tageditor import TagEditorDialog
+    from rifftag.tagio import Picture
+
+    folder, _source, target = _two_files(library)
+    tagio.write(target, {}, pictures=[Picture(_art_bytes(), "image/png")])
+    w = MainWindow()
+    w.folder = folder
+    _scan(w, folder)
+    tgt_track = next(t for t in w.model.all_tracks() if t.path == target)
+
+    dialog = TagEditorDialog([tgt_track], w, w.write_options)
+    assert not dialog.art_check.isChecked()
+    dialog.inputs["artist"].setText("Someone Else")
+    dialog.checks["artist"].setChecked(True)
+    assert not dialog.commit()
+
+    assert tagio.read(target).pictures, "an unrelated edit wiped the art"
+    dialog.close()
+    w.close()

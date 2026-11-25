@@ -59,7 +59,12 @@ GENERAL_PAIRS = {"year": "genre"}
 #: everything about the album is wanted, the title and the words are not.
 #: ``sort_title`` goes with ``title`` because it is the same field — leaving
 #: it ticked would write one song's sort name onto another.
-PER_TRACK_FIELDS = ("title", "sort_title", "lyrics")
+#:
+#: ``track`` is here for the obvious reason: copying from track 3 onto track
+#: 10 would number it 3. Note that the "of N" total goes with it — one tick
+#: governs both halves of that widget (see ``values``) — so the target keeps
+#: whatever total it had, which is the safe way round.
+PER_TRACK_FIELDS = ("title", "sort_title", "lyrics", "track")
 
 
 class TagEditorDialog(QDialog):
@@ -337,6 +342,15 @@ class TagEditorDialog(QDialog):
         self.art_info = QLabel("")
         self.art_info.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
+        # Art is the one thing written without a tick box beside its field,
+        # because it has no field. This is that tick box: unticked, Save
+        # leaves the file's existing art exactly as it is.
+        self.art_check = QCheckBox("Write cover art")
+        self.art_check.setToolTip(
+            "Ticked by anything that changes the art in this window — a copy "
+            "from another file, Add…, a drop, or Remove.\n\nUntick it and "
+            "Save leaves the art on disk alone.")
+
         add, save, remove = (QPushButton("&Add…"), QPushButton("Save to &File…"),
                              QPushButton("&Remove"))
         add.clicked.connect(self._add_art)
@@ -346,6 +360,7 @@ class TagEditorDialog(QDialog):
         lay = QVBoxLayout(box)
         lay.addWidget(self.art_label)
         lay.addWidget(self.art_info)
+        lay.addWidget(self.art_check)
         for b in (add, save, remove):
             lay.addWidget(b)
         lay.addStretch(1)
@@ -418,7 +433,7 @@ class TagEditorDialog(QDialog):
         self.setWindowTitle(
             f"Tag Editor [{len(self.tracks)} File(s)] \u2014 copied "
             f"{filled} field(s) from {self.source.path.name}; "
-            "Title and Lyrics are filled but not ticked")
+            "Title, Track # and Lyrics are filled but not ticked")
 
     def copy_from(self, values: dict, pictures: list | None = None) -> int:
         """Fill every field from another file's tags, ticking what it has.
@@ -478,6 +493,7 @@ class TagEditorDialog(QDialog):
         if pictures:
             self._pictures = list(pictures)
             self._pictures_dirty = True
+            self.art_check.setChecked(True)
             self._show_art(self._pictures[0])
             filled += 1
         return filled
@@ -557,6 +573,7 @@ class TagEditorDialog(QDialog):
         self._load_info()
         self._pictures = None
         self._pictures_dirty = False
+        self.art_check.setChecked(False)
         pics = self.tracks[0].pictures if self.tracks else []
         self._show_art(pics[0] if pics else None)
 
@@ -611,6 +628,7 @@ class TagEditorDialog(QDialog):
     def _set_art(self, picture: Picture) -> None:
         self._pictures = [picture]
         self._pictures_dirty = True
+        self.art_check.setChecked(True)
         self._show_art(picture)
 
     def _add_art(self) -> None:
@@ -640,6 +658,8 @@ class TagEditorDialog(QDialog):
     def _remove_art(self) -> None:
         self._pictures = []
         self._pictures_dirty = True
+        # Ticked, not unticked: removing the art IS a change to write.
+        self.art_check.setChecked(True)
         self._show_art(None)
 
     # --- play ---
@@ -675,7 +695,9 @@ class TagEditorDialog(QDialog):
         """Write tags and apply a file rename. Returns failure messages."""
         failures: list[str] = []
         values = self.values()
-        pics = self._pictures if self._pictures_dirty else None
+        pics = (self._pictures
+                if self._pictures_dirty and self.art_check.isChecked()
+                else None)
 
         if values or pics is not None:
             for track in self.tracks:
