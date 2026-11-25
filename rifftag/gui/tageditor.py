@@ -51,6 +51,17 @@ GENERAL_RIGHT = ("track", "disc", "rating", "mood", "bpm", "compilation")
 GENERAL_PAIRS = {"year": "genre"}
 
 
+#: Filled by a copy, but never ticked by one — so they are visible and one
+#: click away, and a reflexive Save does not carry them across.
+#:
+#: These are the fields that belong to the *song*, not to the release. Dave's
+#: workflow is filling in an untagged track from a sibling on the same album:
+#: everything about the album is wanted, the title and the words are not.
+#: ``sort_title`` goes with ``title`` because it is the same field — leaving
+#: it ticked would write one song's sort name onto another.
+PER_TRACK_FIELDS = ("title", "sort_title", "lyrics")
+
+
 class TagEditorDialog(QDialog):
     """Edit one file, or a whole selection at once.
 
@@ -87,6 +98,12 @@ class TagEditorDialog(QDialog):
         self.resize(980, 660)
         self._build()
         self._load()
+        # Tag&Rename did this the moment the editor opened, with no button
+        # to find, and that is the habit worth matching. Only at
+        # construction: _load() runs again for Prev/Next, and stepping to
+        # another file must show that file's own tags.
+        if self.btn_copy.isEnabled():
+            self._copy_from_source()
 
     # --- construction ---
 
@@ -380,8 +397,11 @@ class TagEditorDialog(QDialog):
         self.btn_copy.setEnabled(usable)
         if usable:
             self.btn_copy.setToolTip(
-                f"Fill every field from {self.source.path.name}, then untick "
-                "anything you do not want written.")
+                f"Fill every field from {self.source.path.name}. Done "
+                "automatically when this window opens; press it again after "
+                "highlighting a different file.\n\nTitle and Lyrics are "
+                "filled but left unticked, so they are not written unless "
+                "you tick them.")
         elif self.source is not None:
             self.btn_copy.setToolTip(
                 "The highlighted file is one of the files being edited, so "
@@ -397,7 +417,8 @@ class TagEditorDialog(QDialog):
         filled = self.copy_from(self.source.values)
         self.setWindowTitle(
             f"Tag Editor [{len(self.tracks)} File(s)] \u2014 copied "
-            f"{filled} field(s) from {self.source.path.name}")
+            f"{filled} field(s) from {self.source.path.name}; "
+            "Title and Lyrics are filled but not ticked")
 
     def copy_from(self, values: dict) -> int:
         """Fill every field from another file's tags, ticking what it has.
@@ -405,12 +426,14 @@ class TagEditorDialog(QDialog):
         Ticking is the point: a field this dialog does not tick is not
         written at all, so an untagged target keeps whatever it already had
         rather than being flattened with blanks. Returns how many were
-        filled, for the title bar.
+        ticked, for the title bar.
 
         Absence and emptiness are different. A key the source does not carry
         leaves its box unticked; a key it carries as an explicit ``False``
         (Compilation, say) is still a value worth copying, so the test is
         "the source has this key" and not "the text is truthy".
+
+        ``PER_TRACK_FIELDS`` are filled but never ticked — see there.
         """
         filled = 0
         for key, widget in self.inputs.items():
@@ -440,6 +463,8 @@ class TagEditorDialog(QDialog):
             # Last, and deliberately: setting a combo or a text box fires the
             # signals _autocheck listens to, so an explicit tick here is what
             # decides, not the side effect.
+            if key in PER_TRACK_FIELDS:
+                present = False
             self.checks[key].setChecked(present)
             if present:
                 filled += 1

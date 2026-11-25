@@ -4243,3 +4243,98 @@ def test_the_editor_copies_from_the_highlighted_row_not_the_ticked_one(
     assert [t.path for t in w.selected_tracks()] == [target]
     assert w.model.track(w.files.currentIndex()).path == source
     w.close()
+
+
+def test_the_copy_happens_on_its_own_when_the_editor_opens(qapp, library):
+    """Tag&Rename did it with no button to find; so does this.
+
+    Only on open. _load runs again for Prev/Next, and stepping to another
+    file has to show that file's own tags, not a copy of the source's.
+    """
+    from rifftag.gui.tageditor import TagEditorDialog
+
+    folder, source, target = _two_files(library)
+    w = MainWindow()
+    w.folder = folder
+    _scan(w, folder)
+    src_track = next(t for t in w.model.all_tracks() if t.path == source)
+    tgt_track = next(t for t in w.model.all_tracks() if t.path == target)
+
+    dialog = TagEditorDialog([tgt_track], w, w.write_options, source=src_track)
+    assert dialog.checks["artist"].isChecked(), "no button press needed"
+    assert dialog.inputs["artist"].text() == "Nirvana"
+    dialog.close()
+    w.close()
+
+
+def test_title_and_lyrics_are_filled_but_never_ticked(qapp, library):
+    """The two fields that belong to the song rather than the release.
+
+    Filled so they are visible and one click away; unticked so a reflexive
+    Save does not put one track's title on another.
+    """
+    from rifftag.gui.tageditor import PER_TRACK_FIELDS, TagEditorDialog
+
+    folder, source, target = _two_files(library)
+    tagio.write(source, {"title": "Smells Like Teen Spirit",
+                         "lyrics": "With the lights out..."})
+    w = MainWindow()
+    w.folder = folder
+    _scan(w, folder)
+    src_track = next(t for t in w.model.all_tracks() if t.path == source)
+    tgt_track = next(t for t in w.model.all_tracks() if t.path == target)
+
+    dialog = TagEditorDialog([tgt_track], w, w.write_options, source=src_track)
+    for key in PER_TRACK_FIELDS:
+        assert not dialog.checks[key].isChecked(), key
+    assert dialog.inputs["title"].text() == "Smells Like Teen Spirit", \
+        "filled, so it is one click away"
+    assert dialog.checks["album"].isChecked(), "the release fields still tick"
+
+    assert not dialog.commit()
+    got = tagio.read(target).values
+    assert got.get("album") == "Nevermind"
+    assert not got.get("title"), "unticked, so it must not have been written"
+    assert not got.get("lyrics")
+    dialog.close()
+    w.close()
+
+
+def test_ticking_title_by_hand_still_copies_it(qapp, library):
+    """Unticked is a default, not a prohibition."""
+    from rifftag.gui.tageditor import TagEditorDialog
+
+    folder, source, target = _two_files(library)
+    tagio.write(source, {"title": "Smells Like Teen Spirit"})
+    w = MainWindow()
+    w.folder = folder
+    _scan(w, folder)
+    src_track = next(t for t in w.model.all_tracks() if t.path == source)
+    tgt_track = next(t for t in w.model.all_tracks() if t.path == target)
+
+    dialog = TagEditorDialog([tgt_track], w, w.write_options, source=src_track)
+    dialog.checks["title"].setChecked(True)
+    assert not dialog.commit()
+    assert tagio.read(target).values.get("title") == "Smells Like Teen Spirit"
+    dialog.close()
+    w.close()
+
+
+def test_stepping_to_the_next_file_shows_that_file_not_the_copy(qapp, library):
+    """The auto-copy must not fire again on Prev/Next."""
+    from rifftag.gui.tageditor import TagEditorDialog
+
+    folder, source, target = _two_files(library)
+    w = MainWindow()
+    w.folder = folder
+    _scan(w, folder)
+    src_track = next(t for t in w.model.all_tracks() if t.path == source)
+    tgt_track = next(t for t in w.model.all_tracks() if t.path == target)
+
+    dialog = TagEditorDialog([tgt_track], w, w.write_options,
+                             siblings=w.model.all_tracks(), source=src_track)
+    dialog._load()                      # what _step does after writing
+    assert not dialog.checks["artist"].isChecked(), \
+        "a reload shows the file's own tags, with nothing ticked"
+    dialog.close()
+    w.close()

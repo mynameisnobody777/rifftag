@@ -429,14 +429,24 @@ against.
 **Copy a whole tag from one file to another.** Tag&Rename's workflow, and the
 reason check boxes exist: ticks say *where to write*, the highlight says *what
 to copy from*. Turn on View -> Use check boxes to select files, tick the
-untagged track, highlight one that is already tagged, open **Edit All
-Supported Tag Fields** and press **Copy from Focused File**. Every field fills
-in and ticks itself; untick the per-track ones (Title, Track #) and Save.
+untagged track, highlight one that is already tagged, and open **Edit All
+Supported Tag Fields**. Every field is already filled in and ticked — the copy
+happens as the window opens, with no button to find, because that is how
+Tag&Rename did it. **Copy from Focused File** is still there for re-copying
+after you highlight a different file.
 
-Two rules make it safe to use on an empty file:
+``PER_TRACK_FIELDS`` — Title, Sort Title and Lyrics — are **filled but not
+ticked**: visible, one click away, and not written unless you ask. They belong
+to the song rather than to the release, which is the thing being copied. Sort
+Title goes with Title because it is the same field.
+
+Two more rules make it safe to use on an empty file:
 
 * a field the source does not carry is left **unticked**, so it is not
   written and the target keeps whatever it had — blanks never flatten a tag;
+* the copy is **not repeated when Prev/Next steps to another file** — a reload
+  has to show that file's own tags, so it only ever happens as the window
+  opens;
 * the button is **disabled when the highlighted row is one of the files being
   edited**, which is every time check boxes are off, because then the
   highlight *is* the selection and there is nothing to copy from.
