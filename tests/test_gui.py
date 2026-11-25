@@ -4106,3 +4106,140 @@ def test_the_shortcut_entry_carries_the_mime_types_and_the_file_argument(qapp):
     body = desktop_entry_text()
     assert mime_line() in body
     assert "%F" in body
+
+
+# --- Copy from Focused File, in the full editor --------------------------
+
+
+def _two_files(library):
+    """(source with every field, empty target) from the shared fixture."""
+    folder, files = library
+    source, target = files[0], files[1]
+    tagio.remove_tags(target)
+    tagio.write(source, {"artist": "Nirvana", "album": "Nevermind",
+                         "album_artist": "Nirvana", "composer": "K. Cobain",
+                         "year": "1991", "genre": "Grunge", "disc": "1",
+                         "label": "DGC", "comment": "from the source"})
+    return folder, source, target
+
+
+def test_copy_from_focused_fills_every_field_not_just_the_quick_ones(
+        qapp, library):
+    """The Multi tab only reaches artist/album/year/genre/comment.
+
+    Tag&Rename could carry the whole tag across, which is what this is for:
+    Album Artist, Composer, Label and Disc are the ones that were out of
+    reach before.
+    """
+    from rifftag.gui.tageditor import TagEditorDialog
+
+    folder, source, target = _two_files(library)
+    w = MainWindow()
+    w.folder = folder
+    _scan(w, folder)
+    w.files.expandAll()
+
+    src_track = next(t for t in w.model.all_tracks() if t.path == source)
+    tgt_track = next(t for t in w.model.all_tracks() if t.path == target)
+
+    dialog = TagEditorDialog([tgt_track], w, w.write_options, source=src_track)
+    assert dialog.btn_copy.isEnabled()
+    assert dialog.copy_from(src_track.values) >= 9
+    assert not dialog.commit()
+
+    got = tagio.read(target).values
+    for key in ("artist", "album", "album_artist", "composer",
+                "year", "genre", "disc", "label"):
+        assert got.get(key) == src_track.values.get(key), key
+    assert tagio.read(source).values["album"] == "Nevermind", "source untouched"
+    dialog.close()
+    w.close()
+
+
+def test_an_unticked_field_is_not_written(qapp, library):
+    """Untick what you do not want — the whole reason the boxes are there."""
+    from rifftag.gui.tageditor import TagEditorDialog
+
+    folder, source, target = _two_files(library)
+    w = MainWindow()
+    w.folder = folder
+    _scan(w, folder)
+    src_track = next(t for t in w.model.all_tracks() if t.path == source)
+    tgt_track = next(t for t in w.model.all_tracks() if t.path == target)
+
+    dialog = TagEditorDialog([tgt_track], w, w.write_options, source=src_track)
+    dialog.copy_from(src_track.values)
+    dialog.checks["comment"].setChecked(False)
+    assert not dialog.commit()
+
+    got = tagio.read(target).values
+    assert got.get("artist") == "Nirvana"
+    assert not got.get("comment"), "unticked, so it must not have been written"
+    dialog.close()
+    w.close()
+
+
+def test_a_field_the_source_lacks_leaves_the_target_alone(qapp, library):
+    """An absent key must not flatten what the target already had."""
+    from rifftag.gui.tageditor import TagEditorDialog
+
+    folder, source, target = _two_files(library)
+    # Mood, because the source deliberately has no Mood. A field the source
+    # DOES carry — title, say — is supposed to be copied, so it would prove
+    # nothing here.
+    tagio.write(target, {"mood": "Keep Me"})
+    w = MainWindow()
+    w.folder = folder
+    _scan(w, folder)
+    src_track = next(t for t in w.model.all_tracks() if t.path == source)
+    tgt_track = next(t for t in w.model.all_tracks() if t.path == target)
+    assert not src_track.values.get("mood"), "the fixture must not set Mood"
+
+    dialog = TagEditorDialog([tgt_track], w, w.write_options, source=src_track)
+    dialog.copy_from(src_track.values)
+    assert not dialog.checks["mood"].isChecked()
+    assert not dialog.commit()
+
+    assert tagio.read(target).values.get("mood") == "Keep Me"
+    dialog.close()
+    w.close()
+
+
+def test_copying_a_file_onto_itself_is_offered_as_disabled(qapp, library):
+    """With check boxes off the highlight IS the selection: nothing to copy."""
+    from rifftag.gui.tageditor import TagEditorDialog
+
+    folder, source, _target = _two_files(library)
+    w = MainWindow()
+    w.folder = folder
+    _scan(w, folder)
+    src_track = next(t for t in w.model.all_tracks() if t.path == source)
+
+    dialog = TagEditorDialog([src_track], w, w.write_options, source=src_track)
+    assert not dialog.btn_copy.isEnabled()
+    assert "check boxes" in dialog.btn_copy.toolTip()
+    dialog.close()
+    w.close()
+
+
+def test_the_editor_copies_from_the_highlighted_row_not_the_ticked_one(
+        qapp, library):
+    """The separation the whole workflow depends on.
+
+    Ticks say where to write; the highlight says what to copy from. If the
+    editor ever took its source from the selection this would pass tags from
+    the empty file to itself and look like it did nothing.
+    """
+    folder, source, target = _two_files(library)
+    w = MainWindow()
+    w.folder = folder
+    _scan(w, folder)
+    w.files.expandAll()
+
+    w.act_checkboxes.setChecked(True)
+    w.model.set_checked([target], True)
+    w.files.setCurrentIndex(w.model.index_for_path(source))
+
+    assert [t.path for t in w.selected_tracks()] == [target]
+    assert w.model.track(w.files.currentIndex()).path == source
+    w.close()

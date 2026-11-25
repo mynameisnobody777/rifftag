@@ -1717,8 +1717,13 @@ class MainWindow(QMainWindow):
             return
         # Siblings are every file on screen, so Save and Next walks the whole
         # folder rather than only the handful that happened to be selected.
+        # The focused row goes too: with check boxes on it is a different
+        # file from the ones being written, and that is what "Copy from
+        # Focused File" copies out of.
         dialog = TagEditorDialog(tracks, self, self.write_options,
-                                 siblings=self.model.all_tracks())
+                                 siblings=self.model.all_tracks(),
+                                 source=self.model.track(
+                                     self.files.currentIndex()))
         dialog.exec()
         if dialog.renamed:
             self._rescan()              # paths moved; the model is stale

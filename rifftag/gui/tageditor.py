@@ -56,15 +56,25 @@ class TagEditorDialog(QDialog):
 
     ``siblings`` is the full file list the Prev/Next buttons walk; it is only
     used when exactly one track is being edited.
+
+    ``source`` is the row the user had highlighted, which is a *different*
+    thing from the files being edited whenever check boxes are in use — the
+    ticks say where to write, the highlight says what to copy from. That
+    separation is the whole point of "Copy from Focused File".
     """
 
     def __init__(self, tracks: list[Track], parent=None,
                  options: WriteOptions | None = None,
-                 siblings: list[Track] | None = None):
+                 siblings: list[Track] | None = None,
+                 source: Track | None = None):
         super().__init__(parent)
         self.tracks = list(tracks)
         self.options = options or WriteOptions()
         self.siblings = list(siblings) if siblings else list(tracks)
+        #: The highlighted file, to copy every field from. Tag&Rename's
+        #: workflow: tick the empty track, highlight one that is already
+        #: tagged, copy the lot across, untick what you do not want.
+        self.source = source
         #: paths the dialog renamed, so the caller knows to rescan
         self.renamed: list[tuple[Path, Path]] = []
         self.changed_any = False
@@ -344,13 +354,96 @@ class TagEditorDialog(QDialog):
         self.btn_remove_tag.clicked.connect(self._remove_tag)
         self.btn_save.setDefault(True)
 
+        self.btn_copy = QPushButton("&Copy from Focused File")
+        self.btn_copy.clicked.connect(self._copy_from_source)
+        self._configure_copy_button()
+
         row = QHBoxLayout()
         row.addWidget(self.btn_play)
+        row.addWidget(self.btn_copy)
         row.addStretch(1)
         for b in (self.btn_prev, self.btn_save, self.btn_cancel,
                   self.btn_remove_tag, self.btn_next):
             row.addWidget(b)
         return row
+
+    def _configure_copy_button(self) -> None:
+        """Only offered when there is something to copy *from*.
+
+        Copying a file onto itself does nothing, so the button is disabled
+        when the highlighted row is one of the files being edited — which is
+        every time check boxes are off, because then the highlight *is* the
+        selection. The tooltip says so rather than leaving a dead button.
+        """
+        editing = {t.path for t in self.tracks}
+        usable = self.source is not None and self.source.path not in editing
+        self.btn_copy.setEnabled(usable)
+        if usable:
+            self.btn_copy.setToolTip(
+                f"Fill every field from {self.source.path.name}, then untick "
+                "anything you do not want written.")
+        elif self.source is not None:
+            self.btn_copy.setToolTip(
+                "The highlighted file is one of the files being edited, so "
+                "there is nothing to copy from.\n\nTurn on View \u2192 Use "
+                "check boxes to select files, tick the file to write to, then "
+                "highlight the file to copy from.")
+        else:
+            self.btn_copy.setToolTip("Highlight a file to copy its tags from.")
+
+    def _copy_from_source(self) -> None:
+        if self.source is None:
+            return
+        filled = self.copy_from(self.source.values)
+        self.setWindowTitle(
+            f"Tag Editor [{len(self.tracks)} File(s)] \u2014 copied "
+            f"{filled} field(s) from {self.source.path.name}")
+
+    def copy_from(self, values: dict) -> int:
+        """Fill every field from another file's tags, ticking what it has.
+
+        Ticking is the point: a field this dialog does not tick is not
+        written at all, so an untagged target keeps whatever it already had
+        rather than being flattened with blanks. Returns how many were
+        filled, for the title bar.
+
+        Absence and emptiness are different. A key the source does not carry
+        leaves its box unticked; a key it carries as an explicit ``False``
+        (Compilation, say) is still a value worth copying, so the test is
+        "the source has this key" and not "the text is truthy".
+        """
+        filled = 0
+        for key, widget in self.inputs.items():
+            present = key in values and str(values[key] or "") != ""
+            text = str(values.get(key, "") or "")
+            if hasattr(widget, "num"):
+                total = str(values.get(key + "_total", "") or "")
+                widget.num.setText(text)                       # type: ignore[attr-defined]
+                widget.total.setText(total)                    # type: ignore[attr-defined]
+            elif isinstance(widget, QLineEdit):
+                widget.setText(text)
+            elif isinstance(widget, QComboBox):
+                if widget.isEditable():
+                    widget.setEditText(text)
+                else:
+                    widget.setCurrentIndex(int(text) if text.isdigit() else 0)
+            elif isinstance(widget, QTextEdit):
+                widget.setPlainText(text)
+            elif isinstance(widget, QCheckBox):
+                # Not tristate any more: this is one file's answer, not a
+                # mixture of several.
+                widget.setTristate(False)
+                widget.setCheckState(
+                    Qt.CheckState.Checked if text in ("True", "1")
+                    else Qt.CheckState.Unchecked)
+                present = key in values
+            # Last, and deliberately: setting a combo or a text box fires the
+            # signals _autocheck listens to, so an explicit tick here is what
+            # decides, not the side effect.
+            self.checks[key].setChecked(present)
+            if present:
+                filled += 1
+        return filled
 
     def _autocheck(self, key: str, widget: QWidget) -> None:
         """Typing in a field ticks its box — otherwise everyone forgets."""

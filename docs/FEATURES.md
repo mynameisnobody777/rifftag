@@ -426,6 +426,25 @@ the file would not read. Colouring by completeness tinted nearly every row red
 — one missing Year was enough — and left no neutral background to read
 against.
 
+**Copy a whole tag from one file to another.** Tag&Rename's workflow, and the
+reason check boxes exist: ticks say *where to write*, the highlight says *what
+to copy from*. Turn on View -> Use check boxes to select files, tick the
+untagged track, highlight one that is already tagged, open **Edit All
+Supported Tag Fields** and press **Copy from Focused File**. Every field fills
+in and ticks itself; untick the per-track ones (Title, Track #) and Save.
+
+Two rules make it safe to use on an empty file:
+
+* a field the source does not carry is left **unticked**, so it is not
+  written and the target keeps whatever it had — blanks never flatten a tag;
+* the button is **disabled when the highlighted row is one of the files being
+  edited**, which is every time check boxes are off, because then the
+  highlight *is* the selection and there is nothing to copy from.
+
+The Multi File Tag Editor tab has its own, smaller *Copy from Focused File*
+covering the five fields on that tab (artist, album, year, genre, comment).
+The one in the full editor reaches everything.
+
 **Not built yet,** roughly in the order they are worth doing:
 
 1. Export/Import tags (csv / xml / html / xlsx round trip).
