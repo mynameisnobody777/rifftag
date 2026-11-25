@@ -251,19 +251,71 @@ class TagEditorDialog(QDialog):
 
     def _build_lyrics_buttons(self) -> QWidget:
         row = QWidget()
-        lay = QHBoxLayout(row)
-        lay.setContentsMargins(0, 2, 0, 2)
+        outer = QVBoxLayout(row)
+        outer.setContentsMargins(0, 2, 0, 2)
+        outer.setSpacing(2)
+        buttons = QWidget()
+        lay = QHBoxLayout(buttons)
+        lay.setContentsMargins(0, 0, 0, 0)
         load = QPushButton("&Load from file…")
         load.setToolTip("Read a .txt or .lrc into the Lyrics box")
         load.clicked.connect(self._load_lyrics)
         save = QPushButton("Save to &file…")
         save.setToolTip("Write what is in the Lyrics box out to a text file")
         save.clicked.connect(self._save_lyrics)
+        clean = QPushButton("Cl&ean")
+        clean.setToolTip(
+            "Strip the scaffolding — [Verse 1], (x2), Chorus:, timestamps, "
+            "credit lines, smart quotes — and leave the words.\n\nNothing "
+            "is written until you Save, so Cancel undoes it.\n\nTools → "
+            "Clean Lyrics does the same across many files, with options.")
+        clean.clicked.connect(self._clean_lyrics)
         lay.addWidget(load)
         lay.addWidget(save)
+        lay.addWidget(clean)
+        #: What the last clean did. A dialog has no status bar, and a modal
+        #: box for a one-click action nobody can undo-by-reading is worse.
         lay.addStretch(1)
+        # On its own line under the buttons, not beside them: the summary
+        # runs to five clauses and beside the buttons it was cut off
+        # mid-word, which is worse than no summary at all.
+        self.lyrics_note = QLabel("")
+        self.lyrics_note.setWordWrap(True)
+        outer.addWidget(buttons)
+        outer.addWidget(self.lyrics_note)
         self.btn_lyrics_load, self.btn_lyrics_save = load, save
+        self.btn_lyrics_clean = clean
         return row
+
+    def _clean_lyrics(self) -> None:
+        """Run the same cleaner Tools → Clean Lyrics uses, on this box.
+
+        Default options: the one that is off by default (fix_shouting) stays
+        off, because a stanza in capitals is sometimes deliberate. The Tools
+        dialog is where that choice lives, across many files at once.
+
+        Nothing touches disk — this edits the box, and Cancel throws it away.
+        """
+        widget = self._lyrics_widget()
+        if widget is None:
+            return
+        from ..lyrics import clean, describe
+        text = widget.toPlainText()
+        if not text.strip():
+            self.lyrics_note.setText("Nothing to clean — the box is empty.")
+            return
+        changes = describe(text)
+        cleaned = clean(text)
+        if cleaned == text:
+            self.lyrics_note.setText("Already clean — nothing changed.")
+            return
+        # setPlainText fires textChanged, which ticks the Lyrics box, so Save
+        # actually writes the cleaned words.
+        widget.setPlainText(cleaned)
+        self.checks["lyrics"].setChecked(True)
+        self.lyrics_note.setText(
+            "Removed " + ", ".join(str(c) for c in changes) + "."
+            if changes else "Cleaned.")
 
     def _lyrics_widget(self):
         return self.inputs.get("lyrics")

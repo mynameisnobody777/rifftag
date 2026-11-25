@@ -4483,3 +4483,106 @@ def test_the_art_box_starts_unticked_so_a_plain_edit_leaves_art_alone(
     assert tagio.read(target).pictures, "an unrelated edit wiped the art"
     dialog.close()
     w.close()
+
+
+# --- Clean on the Lyrics tab --------------------------------------------
+
+
+_MESSY_LYRICS = """[Verse 1]
+Silent night, holy night (x2)
+
+Chorus:
+All is calm, all is bright
+
+Written by Dave Yeubanks
+"""
+
+
+def test_clean_on_the_lyrics_tab_strips_the_scaffolding(qapp, library):
+    """The same cleaner as Tools -> Clean Lyrics, on the box in front of you."""
+    from rifftag.gui.tageditor import TagEditorDialog
+
+    folder, files = library
+    w = MainWindow()
+    w.folder = folder
+    _scan(w, folder)
+    track = w.model.all_tracks()[0]
+
+    dialog = TagEditorDialog([track], w, w.write_options)
+    dialog.inputs["lyrics"].setPlainText(_MESSY_LYRICS)
+    dialog.checks["lyrics"].setChecked(False)
+    dialog._clean_lyrics()
+
+    out = dialog.inputs["lyrics"].toPlainText()
+    assert "[Verse 1]" not in out
+    assert "(x2)" not in out
+    assert "Chorus:" not in out
+    assert "Written by" not in out
+    assert "Silent night, holy night" in out, "the words must survive"
+    assert "All is calm, all is bright" in out
+    assert dialog.checks["lyrics"].isChecked(), "so Save writes the cleaned words"
+    assert "Removed" in dialog.lyrics_note.text()
+    dialog.close()
+    w.close()
+
+
+def test_cleaning_writes_nothing_until_save(qapp, library):
+    """Cancel has to be a real undo for this."""
+    from rifftag.gui.tageditor import TagEditorDialog
+
+    folder, files = library
+    tagio.write(files[0], {"lyrics": _MESSY_LYRICS})
+    w = MainWindow()
+    w.folder = folder
+    _scan(w, folder)
+    track = next(t for t in w.model.all_tracks() if t.path == files[0])
+
+    dialog = TagEditorDialog([track], w, w.write_options)
+    dialog._clean_lyrics()
+    assert "[Verse 1]" in tagio.read(files[0]).values["lyrics"], \
+        "the file must not have been touched"
+
+    assert not dialog.commit()
+    assert "[Verse 1]" not in tagio.read(files[0]).values["lyrics"]
+    dialog.close()
+    w.close()
+
+
+def test_cleaning_already_clean_lyrics_says_so_and_changes_nothing(qapp,
+                                                                   library):
+    from rifftag.gui.tageditor import TagEditorDialog
+
+    folder, files = library
+    w = MainWindow()
+    w.folder = folder
+    _scan(w, folder)
+    track = w.model.all_tracks()[0]
+
+    dialog = TagEditorDialog([track], w, w.write_options)
+    dialog.inputs["lyrics"].setPlainText("Silent night\nHoly night")
+    dialog.checks["lyrics"].setChecked(False)
+    dialog._clean_lyrics()
+
+    assert dialog.inputs["lyrics"].toPlainText() == "Silent night\nHoly night"
+    assert "Already clean" in dialog.lyrics_note.text()
+    assert not dialog.checks["lyrics"].isChecked(), \
+        "nothing changed, so nothing needs writing"
+    dialog.close()
+    w.close()
+
+
+def test_cleaning_an_empty_box_says_so_rather_than_doing_nothing(qapp,
+                                                                 library):
+    from rifftag.gui.tageditor import TagEditorDialog
+
+    folder, files = library
+    w = MainWindow()
+    w.folder = folder
+    _scan(w, folder)
+
+    dialog = TagEditorDialog([w.model.all_tracks()[0]], w, w.write_options)
+    dialog.inputs["lyrics"].setPlainText("")
+    dialog._clean_lyrics()
+    assert "empty" in dialog.lyrics_note.text()
+    dialog.close()
+    w.close()

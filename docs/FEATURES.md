@@ -466,6 +466,15 @@ The Multi File Tag Editor tab has its own, smaller *Copy from Focused File*
 covering the five fields on that tab (artist, album, year, genre, comment).
 The one in the full editor reaches everything.
 
+**Clean on the Lyrics tab.** The same cleaner as Tools -> Clean Lyrics, run on
+the box in front of you, with a line underneath saying what it did. It edits
+the box only — nothing reaches disk until Save, so Cancel is a real undo — and
+it ticks the Lyrics box so Save actually writes the cleaned words. "Already
+clean" and "the box is empty" are said out loud rather than looking like a
+dead button. It uses the default options, which means `fix_shouting` stays
+**off**: a stanza in capitals is sometimes deliberate, and that choice belongs
+in the Tools dialog, which is also still the way to do many files at once.
+
 **Not built yet,** roughly in the order they are worth doing:
 
 1. Export/Import tags (csv / xml / html / xlsx round trip).
