@@ -4111,6 +4111,12 @@ def test_the_shortcut_entry_carries_the_mime_types_and_the_file_argument(qapp):
 # --- Copy from Focused File, in the full editor --------------------------
 
 
+def _art_bytes() -> bytes:
+    """A small PNG, for tests that only need "there is a picture here"."""
+    from tests.test_preflight import _png
+    return _png(64, 64)
+
+
 def _two_files(library):
     """(source with every field, empty target) from the shared fixture."""
     folder, files = library
@@ -4336,5 +4342,50 @@ def test_stepping_to_the_next_file_shows_that_file_not_the_copy(qapp, library):
     dialog._load()                      # what _step does after writing
     assert not dialog.checks["artist"].isChecked(), \
         "a reload shows the file's own tags, with nothing ticked"
+    dialog.close()
+    w.close()
+
+
+def test_cover_art_comes_across_with_the_tags(qapp, library):
+    """Art is part of the tag, and an album's art is the same on every track."""
+    from rifftag.gui.tageditor import TagEditorDialog
+    from rifftag.tagio import Picture
+
+    folder, source, target = _two_files(library)
+    art = Picture(_art_bytes(), "image/png")
+    tagio.write(source, {}, pictures=[art])
+    w = MainWindow()
+    w.folder = folder
+    _scan(w, folder)
+    src_track = next(t for t in w.model.all_tracks() if t.path == source)
+    tgt_track = next(t for t in w.model.all_tracks() if t.path == target)
+    assert src_track.pictures, "the fixture must have art to copy"
+
+    dialog = TagEditorDialog([tgt_track], w, w.write_options, source=src_track)
+    assert not dialog.commit()
+
+    assert tagio.read(target).pictures, "no art reached the target"
+    dialog.close()
+    w.close()
+
+
+def test_a_source_without_art_does_not_wipe_the_targets(qapp, library):
+    """Art has no tick box, so absence must mean "leave it alone"."""
+    from rifftag.gui.tageditor import TagEditorDialog
+    from rifftag.tagio import Picture
+
+    folder, source, target = _two_files(library)
+    tagio.write(target, {}, pictures=[Picture(_art_bytes(), "image/png")])
+    w = MainWindow()
+    w.folder = folder
+    _scan(w, folder)
+    src_track = next(t for t in w.model.all_tracks() if t.path == source)
+    tgt_track = next(t for t in w.model.all_tracks() if t.path == target)
+    assert not src_track.pictures, "this test needs an art-free source"
+
+    dialog = TagEditorDialog([tgt_track], w, w.write_options, source=src_track)
+    assert not dialog.commit()
+
+    assert tagio.read(target).pictures, "the target's own art was wiped"
     dialog.close()
     w.close()

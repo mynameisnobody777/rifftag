@@ -397,11 +397,11 @@ class TagEditorDialog(QDialog):
         self.btn_copy.setEnabled(usable)
         if usable:
             self.btn_copy.setToolTip(
-                f"Fill every field from {self.source.path.name}. Done "
-                "automatically when this window opens; press it again after "
-                "highlighting a different file.\n\nTitle and Lyrics are "
-                "filled but left unticked, so they are not written unless "
-                "you tick them.")
+                f"Fill every field from {self.source.path.name}, cover art "
+                "included. Done automatically when this window opens; press "
+                "it again after highlighting a different file.\n\nTitle and "
+                "Lyrics are filled but left unticked, so they are not written "
+                "unless you tick them.")
         elif self.source is not None:
             self.btn_copy.setToolTip(
                 "The highlighted file is one of the files being edited, so "
@@ -414,13 +414,13 @@ class TagEditorDialog(QDialog):
     def _copy_from_source(self) -> None:
         if self.source is None:
             return
-        filled = self.copy_from(self.source.values)
+        filled = self.copy_from(self.source.values, self.source.pictures)
         self.setWindowTitle(
             f"Tag Editor [{len(self.tracks)} File(s)] \u2014 copied "
             f"{filled} field(s) from {self.source.path.name}; "
             "Title and Lyrics are filled but not ticked")
 
-    def copy_from(self, values: dict) -> int:
+    def copy_from(self, values: dict, pictures: list | None = None) -> int:
         """Fill every field from another file's tags, ticking what it has.
 
         Ticking is the point: a field this dialog does not tick is not
@@ -434,6 +434,12 @@ class TagEditorDialog(QDialog):
         "the source has this key" and not "the text is truthy".
 
         ``PER_TRACK_FIELDS`` are filled but never ticked — see there.
+
+        ``pictures`` comes across too, because cover art is part of the tag
+        and an album's art is the same on every track — which is the case
+        this is for. It has no tick box of its own, so it is only taken when
+        the source actually has some: a source with no art must not wipe art
+        the target already had. Remove in the Art panel undoes it before Save.
         """
         filled = 0
         for key, widget in self.inputs.items():
@@ -468,6 +474,12 @@ class TagEditorDialog(QDialog):
             self.checks[key].setChecked(present)
             if present:
                 filled += 1
+
+        if pictures:
+            self._pictures = list(pictures)
+            self._pictures_dirty = True
+            self._show_art(self._pictures[0])
+            filled += 1
         return filled
 
     def _autocheck(self, key: str, widget: QWidget) -> None:

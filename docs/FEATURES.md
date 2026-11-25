@@ -435,6 +435,12 @@ happens as the window opens, with no button to find, because that is how
 Tag&Rename did it. **Copy from Focused File** is still there for re-copying
 after you highlight a different file.
 
+**Cover art comes across as well.** It is part of the tag, and an album's art
+is the same on every track, which is the case this is for. Art has no tick box
+of its own, so it is only taken when the source actually *has* some — a source
+without art must never wipe art the target already had. **Remove** in the Art
+panel undoes it before you Save.
+
 ``PER_TRACK_FIELDS`` — Title, Sort Title and Lyrics — are **filled but not
 ticked**: visible, one click away, and not written unless you ask. They belong
 to the song rather than to the release, which is the thing being copied. Sort
