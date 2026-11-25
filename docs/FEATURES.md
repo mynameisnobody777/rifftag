@@ -294,6 +294,18 @@ CBR), **FLAC**, **WAV** (16/24-bit, or 16/44.1 for CD) or **M4A/AAC**
 the test fixtures, and the dialog says `sudo apt install ffmpeg` instead of
 converting if it is missing.
 
+**The MP3 quality labels say "average" and "fixed rate" deliberately.** The
+numbers mislead on their own: `~245` sitting next to `320` reads as "worse",
+and Dave read it exactly that way on 2026-11-24. VBR V0 varies the bitrate
+per frame — 320 on a cymbal crash, 150 on a quiet bar — and 245 is only what
+that averages to; 320 CBR spends 320 on the near-silence as well, where it
+buys nothing. Both are transparent, so V0 is the same result about 25%
+smaller, which is why it is listed first. The one real reason to choose 320
+CBR is a distributor or broadcast spec that demands a fixed rate, and the
+label now says so rather than leaving people to assume a bigger number must
+be better. The quality **keys** (`v0`, `320`, …) are what a saved preference
+stores and must not change when the prose does; a test pins that.
+
 Three rules make it safe to press:
 
 * **Originals are never touched.** Output goes to a subfolder of the source

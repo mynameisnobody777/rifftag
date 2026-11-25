@@ -67,13 +67,25 @@ FORMATS: tuple[Format, ...] = (
     Format("mp3", "MP3", ".mp3", "MP3", (
         # VBR first: V0 beats 320 CBR on size at the same transparency, and
         # is what most people actually want from "convert to MP3".
-        Quality("v0", "VBR V0 — best quality (~245 kbps)",
+        #
+        # The labels say "average" and "fixed rate" out loud because the
+        # numbers mislead on their own: 245 next to 320 reads as "worse",
+        # when V0 varies the bitrate per frame — spending 320 on a cymbal
+        # crash and 150 on a quiet bar — and 245 is only what that averages
+        # to. CBR spends 320 on the near-silence too, where it buys nothing.
+        # The one real reason to pick 320 CBR is a distributor or broadcast
+        # spec that demands a fixed rate, so the label says that instead of
+        # leaving people to guess that a bigger number must be better.
+        Quality("v0", "VBR V0 — best quality for the size (~245 kbps average)",
                 ("-c:a", "libmp3lame", "-q:a", "0")),
-        Quality("v2", "VBR V2 — smaller (~190 kbps)",
+        Quality("v2", "VBR V2 — smaller (~190 kbps average)",
                 ("-c:a", "libmp3lame", "-q:a", "2")),
-        Quality("320", "320 kbps CBR", ("-c:a", "libmp3lame", "-b:a", "320k")),
-        Quality("256", "256 kbps CBR", ("-c:a", "libmp3lame", "-b:a", "256k")),
-        Quality("192", "192 kbps CBR", ("-c:a", "libmp3lame", "-b:a", "192k")),
+        Quality("320", "320 kbps CBR — fixed rate, if a distributor asks for it",
+                ("-c:a", "libmp3lame", "-b:a", "320k")),
+        Quality("256", "256 kbps CBR — fixed rate",
+                ("-c:a", "libmp3lame", "-b:a", "256k")),
+        Quality("192", "192 kbps CBR — fixed rate",
+                ("-c:a", "libmp3lame", "-b:a", "192k")),
     )),
     Format("flac", "FLAC", ".flac", "FLAC", (
         Quality("default", "Lossless — default compression",

@@ -236,3 +236,38 @@ def test_every_encoder_we_offer_is_actually_installed():
         for quality in fmt.qualities:
             codec = quality.args[quality.args.index("-c:a") + 1]
             assert f" {codec} " in listed, f"{fmt.label}/{quality.key}: {codec}"
+
+
+# --- what the MP3 quality labels promise --------------------------------
+
+
+def _mp3_qualities():
+    from rifftag.convert import FORMATS
+    return next(f for f in FORMATS if f.key == "mp3").qualities
+
+
+def test_vbr_is_offered_first_and_says_average():
+    """245 next to 320 reads as "worse" unless the label explains itself.
+
+    V0 varies the bitrate per frame and 245 is only the average; 320 CBR
+    spends 320 on the near-silence too. Dave read the old label exactly the
+    way the numbers invite, which is what these words are for.
+    """
+    qualities = _mp3_qualities()
+    assert qualities[0].key == "v0", "VBR comes first"
+    assert "average" in qualities[0].label
+    assert "average" in qualities[1].label
+
+
+def test_the_cbr_entries_say_why_you_would_pick_one():
+    """A fixed rate is a compliance choice, not a quality one."""
+    for quality in _mp3_qualities():
+        if quality.key.isdigit():
+            assert "fixed rate" in quality.label, quality.label
+    by_key = {q.key: q for q in _mp3_qualities()}
+    assert "distributor" in by_key["320"].label
+
+
+def test_the_quality_keys_are_unchanged_by_relabelling():
+    """Keys are what a saved preference stores; labels are prose."""
+    assert [q.key for q in _mp3_qualities()] == ["v0", "v2", "320", "256", "192"]
