@@ -173,7 +173,50 @@ pyinstaller --noconfirm --windowed --name RiffTag `
 ```
 
 Expect 100–150 MB because Qt is bundled rather than borrowed from the distro.
-Inno Setup is the usual next step for a real installer with file associations.
+
+### The installer
+
+A PyInstaller folder in a zip has no Start Menu entry, no Add/Remove Programs
+entry and no uninstaller — uninstalling is deleting the folder. That is a
+worse first impression than it needs to be, so there is an **Inno Setup**
+installer as well. Both artifacts ship: the zip for people who want portable,
+`RiffTag-<ver>-Setup.exe` for people who want it installed.
+
+The `.iss` is **generated** by `packaging/make_iss.py`, never hand-written —
+the file-type list has to come from `rifftag/desktopfile.py` or it drifts from
+the Linux one, which is exactly the bug that hid RiffTag from the .wav
+"Open with" menu. `tests/test_make_iss.py` covers it, because the installer
+is compiled on a machine the test suite never runs on.
+
+```powershell
+python packaging\make_iss.py C:\RiffTag\build\rifftag.iss 0.3
+"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /Q C:\RiffTag\build\rifftag.iss
+```
+
+`build_windows.bat` does both, and **skips the step with a message if Inno
+Setup is not installed** rather than failing the build. Install it once from
+<https://jrsoftware.org/isdl.php>; **6.3 or newer**, because `x64compatible`
+does not exist before that (on an older one, change those two lines to `x64`).
+
+Decisions baked into the script, each for a reason:
+
+* **`AppId` is a fixed GUID and must never change.** It is the identity
+  Windows stores for the installed program; changing it makes an upgrade
+  install a second copy beside the first and orphans the old uninstaller.
+* **Per-user by default** (`PrivilegesRequired=lowest`), so there is no UAC
+  prompt — the same choice the HKCU associations make. The dialog still lets
+  anyone pick a machine-wide install.
+* **`uninsdeletevalue`, never `uninsdeletekey`, on the extension keys.**
+  `.mp3\OpenWithProgids` belongs to the file type and other programs keep
+  their own values there; deleting the key on uninstall would take theirs.
+* **The associations are an optional task**, and the installer never takes a
+  default handler. Installing a tag editor must not take the double-click
+  away from someone's music player.
+* **Unsigned.** Windows will show "Windows protected your PC" until the
+  installer earns SmartScreen reputation. A code-signing certificate is the
+  fix and costs real money every year — see the money plan in
+  `../../CONTEXT_APPS.md`, where a signed installer is named as one of the
+  few things genuinely worth charging for.
 
 ### File associations, until there is an installer
 
