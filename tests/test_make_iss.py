@@ -38,7 +38,19 @@ def test_the_app_id_is_the_one_windows_already_knows():
     entry in Add/Remove Programs would point at files that are gone.
     """
     assert make_iss.APP_ID == "{01FB28A0-3875-4216-8608-FA4ED33E7B54}"
-    assert f"AppId={make_iss.APP_ID}" in _iss()
+    assert f"AppId={{{make_iss.APP_ID}" in _iss()
+
+
+def test_the_app_id_brace_is_escaped_for_inno():
+    """A single { opens a constant, so the GUID must be written {{GUID}.
+
+    Without the doubled opening brace ISCC aborts with
+    `Unknown constant "01FB28A0-..."`, which is exactly what the first
+    generated script did.
+    """
+    line = next(l for l in _iss().splitlines() if l.startswith("AppId="))
+    assert line == "AppId={{01FB28A0-3875-4216-8608-FA4ED33E7B54}"
+    assert line.count("{") == 2 and line.count("}") == 1
 
 
 def test_the_uninstaller_is_what_this_was_for():
@@ -111,3 +123,42 @@ def test_writing_it_out_works(tmp_path):
     out = tmp_path / "nested" / "rifftag.iss"
     assert make_iss.main(["make_iss.py", str(out), "0.3"]) == 0
     assert out.read_text(encoding="utf-8").startswith("; GENERATED")
+
+
+# --- Inno's quoting, which is where two compiles died --------------------
+
+
+def _value_data(line: str) -> str:
+    """Decode one `ValueData: "..."` as Inno Setup would read it.
+
+    An .iss parameter is wrapped in double quotes and every quote inside it
+    is doubled. So `\"\"\"{app}\\x\"\" \"\"%1\"\"\"` is the value
+    `"{app}\\x" "%1"` — which is what has to end up in the registry, because
+    a path with a space in it arrives as several arguments otherwise.
+    """
+    body = line.split("ValueData: ", 1)[1].rsplit(";", 1)[0].strip()
+    assert body.startswith('"') and body.endswith('"'), body
+    return body[1:-1].replace('""', '"')
+
+
+def test_the_open_command_is_the_exe_and_a_quoted_argument():
+    """Four opening quotes instead of three aborted the compile with
+    "Mismatched or misplaced quotes on parameter ValueData"."""
+    # "ValueData:" as well as "%1": a comment line mentions %1 too.
+    lines = [l for l in _iss().splitlines()
+             if "%1" in l and "ValueData:" in l]
+    assert len(lines) == 2, "the ProgID and Applications\\ commands"
+    for line in lines:
+        assert _value_data(line) == '"{app}\\{#MyAppExeName}" "%1"'
+
+
+def test_no_value_data_has_an_odd_number_of_quotes():
+    """An odd count cannot be a valid Inno quoted parameter.
+
+    Cheap, and it catches the off-by-one that the exact match above would
+    only catch for the two lines it knows about.
+    """
+    for line in _iss().splitlines():
+        if "ValueData:" in line:
+            body = line.split("ValueData: ", 1)[1].rsplit(";", 1)[0].strip()
+            assert body.count('"') % 2 == 0, line

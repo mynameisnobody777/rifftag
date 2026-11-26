@@ -30,6 +30,20 @@ from rifftag.desktopfile import extensions  # noqa: E402
 #: instead of replacing it, and the old one's uninstaller is orphaned.
 APP_ID = "{01FB28A0-3875-4216-8608-FA4ED33E7B54}"
 
+
+def app_id_literal() -> str:
+    """The AppId as Inno Setup needs it written: ``{{GUID}``.
+
+    A single ``{`` opens a *constant* in an .iss file, so a raw ``{GUID}``
+    is read as one and the compile dies with::
+
+        Unknown constant "01FB28A0-3875-4216-8608-FA4ED33E7B54".
+
+    Doubling only the opening brace is the documented escape, and is what
+    Inno's own script wizard emits. The closing brace stays single.
+    """
+    return "{" + APP_ID
+
 PROG_ID = "RiffTag.AudioFile"
 
 #: Windows refuses to let an installer seize a default handler, and taking
@@ -71,8 +85,10 @@ WizardStyle=modern
 LicenseFile={LICENSE}
 UninstallDisplayName={{#MyAppName}} {VERSION}
 UninstallDisplayIcon={{app}}\\{{#MyAppExeName}}
-; x64compatible needs Inno Setup 6.3 or newer. On anything older these two
-; lines are the only thing that will refuse to compile - change them to x64.
+; x64compatible needs Inno Setup 6.3 or newer, and is the RIGHT identifier
+; under 7, where plain x64 is deprecated and compiles with a warning. It
+; matches x64 Windows and Arm64 Windows 11 both. On anything older than 6.3
+; these two lines are the only thing that will refuse to compile.
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 
@@ -122,7 +138,7 @@ Root: HKA; Subkey: "Software\\Classes\\{PROG_ID}\\DefaultIcon"; \\
     ValueData: "{{app}}\\{{#MyAppExeName}},0"; Tasks: associate
 Root: HKA; Subkey: "Software\\Classes\\{PROG_ID}\\shell\\open\\command"; \\
     ValueType: string; ValueName: ""; \\
-    ValueData: """"{{app}}\\{{#MyAppExeName}}"" ""%1"""; Tasks: associate
+    ValueData: """{{app}}\\{{#MyAppExeName}}"" ""%1"""; Tasks: associate
 
 ; Applications\\RiffTag.exe is what makes the entry read "RiffTag" in the
 ; Open with list instead of the bare file name.
@@ -132,7 +148,7 @@ Root: HKA; Subkey: "Software\\Classes\\Applications\\{{#MyAppExeName}}"; \\
 Root: HKA; \\
     Subkey: "Software\\Classes\\Applications\\{{#MyAppExeName}}\\shell\\open\\command"; \\
     ValueType: string; ValueName: ""; \\
-    ValueData: """"{{app}}\\{{#MyAppExeName}}"" ""%1"""; Tasks: associate
+    ValueData: """{{app}}\\{{#MyAppExeName}}"" ""%1"""; Tasks: associate
 '''
 
 
@@ -157,7 +173,7 @@ def _registry_for(ext: str) -> str:
 def render(version: str, dist: str, output_dir: str, icon: str,
            license_file: str) -> str:
     """The complete .iss text."""
-    head = _HEADER.format(APP_ID=APP_ID, VERSION=version, DIST=dist,
+    head = _HEADER.format(APP_ID=app_id_literal(), VERSION=version, DIST=dist,
                           OUTPUT_DIR=output_dir, ICON=icon,
                           LICENSE=license_file)
     body = _REGISTRY_HEAD.format(PROG_ID=PROG_ID)

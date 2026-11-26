@@ -194,9 +194,12 @@ python packaging\make_iss.py C:\RiffTag\build\rifftag.iss 0.3
 ```
 
 `build_windows.bat` does both, and **skips the step with a message if Inno
-Setup is not installed** rather than failing the build. Install it once from
-<https://jrsoftware.org/isdl.php>; **6.3 or newer**, because `x64compatible`
-does not exist before that (on an older one, change those two lines to `x64`).
+Setup is not installed** rather than failing the build. Install it once from <https://jrsoftware.org/isdl.php> — **take the current
+stable, 7.x**. The floor is 6.3, because `x64compatible` does not exist
+before that, but 7 is what upstream recommends and the generated script is
+already compatible with it: nothing it emits uses `WizardResizable`,
+`WindowVisible` or Pascal scripting, all of which 7 dropped, and it already
+uses `x64compatible` rather than the plain `x64` that 7 deprecates.
 
 Decisions baked into the script, each for a reason:
 
