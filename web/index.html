@@ -1,7 +1,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>RiffTag</title>
-<meta name="description" content="A music tag editor built by someone who releases his own records. Rename albums from their tags, clean lyrics for streaming, and check a release before you upload it. Free, GPL-3, Linux and Windows.">
+<meta name="description" content="A music tag editor built by someone who releases his own records. Rename albums from their tags, clean lyrics for streaming, and check a release before you upload it. It tags movies and TV episodes from TMDB too. Free, GPL-3, Linux and Windows.">
 <meta property="og:title" content="RiffTag — tag it once, ship it right">
 <meta property="og:description" content="Rename albums from their tags, clean lyrics for streaming, and find out what a distributor would send back — before you upload.">
 <meta property="og:image" content="https://rifftag.nobody777.com/img/social.jpg">
@@ -442,6 +442,7 @@
     <a href="#top" aria-label="RiffTag, back to the top"><img src="img/wordmark.png" alt="RiffTag"></a>
     <nav>
       <a href="#what">What it does</a>
+      <a href="#movies">Movies &amp; TV</a>
       <a href="#release-check">Release Check</a>
       <a href="#lyrics">Lyrics</a>
       <a href="#download">Download</a>
@@ -471,6 +472,11 @@
           you upload it</strong> and find out what a distributor would have
           sent back.
         </p>
+        <p class="lede">
+          <strong>And it tags films too.</strong> Look up movies and TV
+          episodes on TMDB and write titles, seasons, episodes, descriptions
+          and posters straight into your MKV and MP4 files.
+        </p>
         <div class="cta-row">
           <a class="btn primary" href="#download">Download for Linux <small>· .deb</small></a>
           <a class="btn" href="#download">Download for Windows <small>· .exe</small></a>
@@ -489,7 +495,7 @@
 
     <div class="facts">
       <div class="fact"><b>13</b><span>tag formats</span></div>
-      <div class="fact"><b>712</b><span>tests passing</span></div>
+      <div class="fact"><b>738</b><span>tests passing</span></div>
       <div class="fact"><b>GPL-3</b><span>free software</span></div>
       <div class="fact"><b>2</b><span>platforms, one codebase</span></div>
     </div>
@@ -583,6 +589,70 @@
             <tr><td>%5</td><td>Genre</td><td>%t</td><td>Play time</td></tr>
           </table>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="movies">
+    <div class="wrap split">
+      <div>
+        <p class="eyebrow">Movies &amp; TV</p>
+        <h2>A proper movie tagger, too</h2>
+      </div>
+      <div>
+        <p class="section-lede">
+          Built for music, and just as at home with a film library. Point it at
+          a folder of movies or a season of a show, and it finds each one on
+          TMDB from the file name — <code>Heat&nbsp;(1995).mkv</code>,
+          <code>Show&nbsp;-&nbsp;S01E02.mp4</code>, <code>1x02</code> — and
+          writes what it finds into the file.
+        </p>
+
+        <div class="features">
+          <div class="feature">
+            <img src="img/glyphs/globe.png" alt="" width="38" height="38">
+            <h3>Movies, one after another</h3>
+            <p>Title, year, genre and the plot summary, checked before anything
+              is written. Write or skip, and the next film is already searched.</p>
+          </div>
+          <div class="feature">
+            <img src="img/glyphs/folder.png" alt="" width="38" height="38">
+            <h3>A whole season at once</h3>
+            <p>Look the show up once; every episode file is matched by the
+              S01E02 in its name, with the episode titles lined up for you to
+              check. Numbers are editable where a name has none.</p>
+          </div>
+          <div class="feature">
+            <img src="img/glyphs/cover.png" alt="" width="38" height="38">
+            <h3>Posters as cover art</h3>
+            <p>The film's poster, or the season's own, embedded in the file —
+              so it shows up in players and file managers that read it.</p>
+          </div>
+          <div class="feature">
+            <img src="img/glyphs/check.png" alt="" width="38" height="38">
+            <h3>Edited in place</h3>
+            <p>MKV tags change in an instant, with no remux and the video
+              untouched. An MP4 is rewritten once, the first time; after
+              that, instant too.</p>
+          </div>
+          <div class="feature">
+            <img src="img/glyphs/tag.png" alt="" width="38" height="38">
+            <h3>From the editor, too</h3>
+            <p>Double-click any file and look it up from the tag editor: the
+              answer fills the fields, and nothing is saved until you say so.</p>
+          </div>
+          <div class="feature">
+            <img src="img/glyphs/waveform.png" alt="" width="38" height="38">
+            <h3>Home videos, finally named</h3>
+            <p>When a media server finds nothing online, it falls back on the
+              title in the file. Give your own videos one.</p>
+          </div>
+        </div>
+        <p class="section-lede" style="margin-top:22px;font-size:.9em">
+          Needs a free TMDB API key (themoviedb.org → Settings → API), pasted
+          into <em>Options → TMDB API key</em>. This product uses the TMDB API
+          but is not endorsed or certified by TMDB.
+        </p>
       </div>
     </div>
   </section>
@@ -689,12 +759,12 @@
           <div class="platform">
             <h3>Linux <em>Debian · Ubuntu · Mint</em></h3>
             <ul>
-              <li><code>sudo dpkg -i rifftag_0.4.1_all.deb</code></li>
+              <li><code>sudo dpkg -i rifftag_0.5_all.deb</code></li>
               <li>~5 MB — Qt and mutagen come from your distro</li>
               <li>Playback wants <code>python3-pyqt6.qtmultimedia</code>; converting wants <code>ffmpeg</code>. Both optional.</li>
             </ul>
             <div class="cta-row">
-              <a class="btn primary" href="downloads/rifftag_0.4.1_all.deb" download>Download · 5.6 MB</a>
+              <a class="btn primary" href="downloads/rifftag_0.5_all.deb" download>Download · 5.6 MB</a>
             </div>
           </div>
           <div class="platform">
@@ -728,7 +798,7 @@
           builds rather than being available on request. Read it on
           <a href="https://github.com/mynameisnobody777/rifftag">GitHub</a>,
           or take the exact tarball these builds came from:
-          <a href="downloads/rifftag-0.4.1-source.tar.gz">rifftag-0.4.1-source.tar.gz</a>.
+          <a href="downloads/rifftag-0.5-source.tar.gz">rifftag-0.5-source.tar.gz</a>.
         </p>
 
         <figure class="shot" style="margin-top:28px">
