@@ -23,7 +23,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 
 @dataclass(frozen=True)
@@ -49,7 +50,10 @@ def _as_path(arg: str) -> Path | None:
         parsed = urlparse(arg)
         if parsed.netloc not in ("", "localhost"):
             return None                 # a remote URI: not ours to open
-        arg = unquote(parsed.path)
+        # url2pathname, not unquote: on Windows "/C:/Users/a%20b.mp3" must
+        # become "C:\\Users\\a b.mp3"; unquote left the leading slash and the
+        # file was never found (seen in the Windows VM run, 2026-11-28).
+        arg = url2pathname(parsed.path)
     elif arg.startswith("-"):
         return None
     try:

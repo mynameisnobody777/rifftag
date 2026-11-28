@@ -6,9 +6,12 @@ rather than with ours.
 """
 
 import json
+import os
 import shutil
 import subprocess
+import tempfile
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 import pytest
 
@@ -19,11 +22,16 @@ pytestmark = pytest.mark.skipif(not matroska.available(),
                                 reason="MKVToolNix is not installed")
 
 
+# The helpers find the tools the way the app does (matroska.tool), not by bare
+# name: on Windows MKVToolNix lives in Program Files and is not on PATH, and
+# the first version's hard-coded PATH=/usr/bin:/bin failed six tests there.
 def _mkv_tags(path) -> ET.Element:
-    out = subprocess.run(["mkvextract", str(path), "tags", "-"],
-                         capture_output=True, check=True,
-                         env={"LC_ALL": "C.UTF-8", "PATH": "/usr/bin:/bin"}).stdout
-    return matroska._parse_tags(out)
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "tags.xml"
+        subprocess.run([matroska.tool("mkvextract"), str(path), "tags", str(out)],
+                       capture_output=True, check=True,
+                       env=dict(os.environ, LC_ALL="C.UTF-8"))
+        return matroska._parse_tags(out.read_bytes())
 
 
 def _ffprobe_tags(path) -> dict:
@@ -37,7 +45,7 @@ def _ffprobe_tags(path) -> dict:
 def _set_tags_xml(path, xml: str, tmp_path) -> None:
     f = tmp_path / "in.xml"
     f.write_text(xml, encoding="utf-8")
-    subprocess.run(["mkvpropedit", str(path), "--tags", f"all:{f}"],
+    subprocess.run([matroska.tool("mkvpropedit"), str(path), "--tags", f"all:{f}"],
                    check=True, capture_output=True)
 
 
@@ -188,7 +196,7 @@ def test_non_image_attachments_are_left_alone(sample, tmp_path, jpeg_bytes):
     p = sample("mkv")
     font = tmp_path / "font.ttf"
     font.write_bytes(b"\x00\x01\x00\x00not-really-a-font")
-    subprocess.run(["mkvpropedit", str(p), "--attachment-mime-type",
+    subprocess.run([matroska.tool("mkvpropedit"), str(p), "--attachment-mime-type",
                     "font/ttf", "--add-attachment", str(font)],
                    check=True, capture_output=True)
     tagio.write(p, {}, pictures=[Picture(jpeg_bytes)])
