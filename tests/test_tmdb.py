@@ -274,3 +274,20 @@ def test_the_camera_icon_draws(qapp):
     opaque = sum(1 for x in range(24) for y in range(24)
                  if image.pixelColor(x, y).alpha() > 0)
     assert 120 < opaque < 400, opaque       # a shape, not empty, not a block
+
+
+def test_the_dialog_closes_after_writing_the_last_movie(qapp, sample, tmp_path):
+    """Write Tags on the last (or only) file must close the dialog.
+
+    It wrote the tags and then sat there: the close guard asked whether the
+    worker thread was running, and it still was, winding down (2026-11-28).
+    """
+    from PyQt6.QtWidgets import QDialog
+    p = sample("m4a", "x").rename(tmp_path / "Heat (1995).mp4")
+    dlg = _dialog([tagio.read(p)])
+    dlg.show()
+    dlg._show_movie(Video("movie", 949, "Heat", "1995"))
+    dlg._write_movie()
+    _wait(qapp, lambda: not dlg.isVisible())
+    assert dlg.result() == QDialog.DialogCode.Accepted and dlg.wrote == 1
+    assert tagio.read(p).values["title"] == "Heat"

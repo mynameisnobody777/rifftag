@@ -130,6 +130,11 @@ class VideoLookupDialog(QDialog):
 
         self._thread: QThread | None = None
         self._job: _Job | None = None
+        #: True from Write Tags until its result is handled. A flag, not a
+        #: look at the worker thread: the thread is still winding down when
+        #: the result arrives, so "is it running?" said yes and the dialog
+        #: refused to close after a successful write (2026-11-28).
+        self.writing = False
 
         self.setWindowTitle(f"Get Movie / TV Info from TMDB  "
                             f"[selected files: {len(self.tracks)}]")
@@ -394,6 +399,7 @@ class VideoLookupDialog(QDialog):
         self._thread = self._job = None
 
     def _failed(self, message: str) -> None:
+        self.writing = False
         self._busy(False)
         QMessageBox.warning(self, "TMDB", message)
 
@@ -508,11 +514,13 @@ class VideoLookupDialog(QDialog):
             return
         track = self.tracks[self.index]
         self._busy(True, WRITING_NOTE)
+        self.writing = True
         self._run(_write_all, self._movie_written, [(track, values)],
                   pictures, self.write_options)
 
     def _movie_written(self, result) -> None:
         wrote, failures = result
+        self.writing = False
         self.wrote += wrote
         self._busy(False)
         if failures:
@@ -620,11 +628,13 @@ class VideoLookupDialog(QDialog):
                                     "No file matched an episode — nothing to write.")
             return
         self._busy(True, WRITING_NOTE)
+        self.writing = True
         self._run(_write_all, self._tv_written, plans, pictures,
                   self.write_options)
 
     def _tv_written(self, result) -> None:
         wrote, failures = result
+        self.writing = False
         self.wrote += wrote
         self._busy(False)
         if failures:
@@ -637,12 +647,6 @@ class VideoLookupDialog(QDialog):
             return              # never abandon a write halfway through a file
         self._stop_thread()
         super().done(result)
-
-    @property
-    def writing(self) -> bool:
-        return (self._job is not None and self._thread is not None
-                and self._thread.isRunning()
-                and getattr(self._job, "_fn", None) is _write_all)
 
     def closeEvent(self, event) -> None:
         if self.writing:
