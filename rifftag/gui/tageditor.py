@@ -82,9 +82,13 @@ class TagEditorDialog(QDialog):
     def __init__(self, tracks: list[Track], parent=None,
                  options: WriteOptions | None = None,
                  siblings: list[Track] | None = None,
-                 source: Track | None = None):
+                 source: Track | None = None,
+                 discogs_token: str = "", tmdb_key: str = ""):
         super().__init__(parent)
         self.tracks = list(tracks)
+        #: for the Album lookup / Movie-TV lookup buttons
+        self.discogs_token = discogs_token
+        self.tmdb_key = tmdb_key
         self.options = options or WriteOptions()
         self.siblings = list(siblings) if siblings else list(tracks)
         #: The highlighted file, to copy every field from. Tag&Rename's
@@ -442,9 +446,24 @@ class TagEditorDialog(QDialog):
         self.btn_copy.clicked.connect(self._copy_from_source)
         self._configure_copy_button()
 
+        # Lookups that fill this editor's fields instead of writing the file,
+        # so the results can be checked and tweaked, then saved with Save (or
+        # Save and Next). Dave asked for them here on 2026-11-28.
+        self.btn_album_lookup = QPushButton("Al&bum lookup…")   # Alt+L is Load (lyrics)
+        self.btn_album_lookup.setToolTip(
+            "Fill the fields from MusicBrainz or Discogs. Nothing is saved "
+            "until you press Save.")
+        self.btn_album_lookup.clicked.connect(self._lookup_album)
+        self.btn_video_lookup = QPushButton("&Movie/TV lookup…")
+        self.btn_video_lookup.setToolTip(
+            "Fill the fields from TMDB. Nothing is saved until you press Save.")
+        self.btn_video_lookup.clicked.connect(self._lookup_video)
+
         row = QHBoxLayout()
         row.addWidget(self.btn_play)
         row.addWidget(self.btn_copy)
+        row.addWidget(self.btn_album_lookup)
+        row.addWidget(self.btn_video_lookup)
         row.addStretch(1)
         for b in (self.btn_prev, self.btn_save, self.btn_cancel,
                   self.btn_remove_tag, self.btn_next):
@@ -550,6 +569,71 @@ class TagEditorDialog(QDialog):
             filled += 1
         return filled
 
+    # --- web lookups ---
+
+    def _lookup_album(self) -> None:
+        from .webimport import WebImportDialog
+        dialog = WebImportDialog(self.tracks, self, fill_only=True,
+                                 discogs_token=self.discogs_token)
+        if dialog.exec() and dialog.filled_values is not None:
+            self._apply_lookup(dialog.filled_values, dialog.filled_pictures)
+
+    def _lookup_video(self) -> None:
+        from .videolookup import VideoLookupDialog
+        dialog = VideoLookupDialog(self.tracks, self, fill_only=True,
+                                   tmdb_key=self.tmdb_key)
+        if dialog.exec() and dialog.filled_values is not None:
+            self._apply_lookup(dialog.filled_values, dialog.filled_pictures)
+
+    def _apply_lookup(self, values: dict, pictures: list | None) -> int:
+        n = self.fill_from(values, pictures)
+        self.setWindowTitle(
+            f"Tag Editor [{len(self.tracks)} File(s)] — filled {n} field(s) "
+            "from the web; press Save to write them")
+        return n
+
+    def fill_from(self, values: dict, pictures: list | None = None) -> int:
+        """Set and tick only the fields in ``values``; leave the rest alone.
+
+        Unlike ``copy_from`` (another file's complete tag, where an absent key
+        means "blank"), a lookup answers only some fields, and whatever the
+        user has already typed in the others must survive. Per-track fields
+        *are* ticked here: the lookup was for this very file.
+        """
+        filled = 0
+        for key, value in values.items():
+            if key.endswith("_total") and key[:-6] in self.inputs:
+                continue                      # set together with its number
+            widget = self.inputs.get(key)
+            if widget is None:
+                continue
+            text = str(value)
+            if hasattr(widget, "num"):
+                widget.num.setText(text)                       # type: ignore[attr-defined]
+                if key + "_total" in values:
+                    widget.total.setText(str(values[key + "_total"]))  # type: ignore[attr-defined]
+            elif isinstance(widget, QLineEdit):
+                widget.setText(text)
+            elif isinstance(widget, QComboBox):
+                if widget.isEditable():
+                    widget.setEditText(text)
+                else:
+                    widget.setCurrentIndex(int(text) if text.isdigit() else 0)
+            elif isinstance(widget, QTextEdit):
+                widget.setPlainText(text)
+            elif isinstance(widget, QCheckBox):
+                widget.setTristate(False)
+                widget.setChecked(text in ("True", "1"))
+            self.checks[key].setChecked(True)
+            filled += 1
+        if pictures:
+            self._pictures = list(pictures)
+            self._pictures_dirty = True
+            self.art_check.setChecked(True)
+            self._show_art(self._pictures[0])
+            filled += 1
+        return filled
+
     def _autocheck(self, key: str, widget: QWidget) -> None:
         """Typing in a field ticks its box — otherwise everyone forgets."""
         def tick(*_):
@@ -633,6 +717,8 @@ class TagEditorDialog(QDialog):
         self.btn_prev.setVisible(self.single)
         self.btn_next.setVisible(self.single)
         self.btn_play.setVisible(self.single)
+        self.btn_album_lookup.setVisible(self.single)
+        self.btn_video_lookup.setVisible(self.single)
         self.btn_prev.setEnabled(pos > 0)
         self.btn_next.setEnabled(0 <= pos < len(self.siblings) - 1)
 

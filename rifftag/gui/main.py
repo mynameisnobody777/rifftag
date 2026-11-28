@@ -1696,12 +1696,19 @@ class MainWindow(QMainWindow):
             self.files.setExpanded(index, not self.files.isExpanded(index))
             return
         dialog = TagEditorDialog([track], self, self.write_options,
-                                 siblings=self.model.all_tracks())
+                                 siblings=self.model.all_tracks(),
+                                 **self._lookup_keys())
         dialog.exec()
         if dialog.renamed:
             self._rescan()
         elif dialog.changed_any:
             self._refresh_tracks(dialog.siblings)
+
+    def _lookup_keys(self) -> dict[str, str]:
+        """The web-lookup credentials, for dialogs that offer lookups."""
+        return {"discogs_token":
+                str(self.settings.value("discogs_token", "") or ""),
+                "tmdb_key": str(self.settings.value("tmdb_key", "") or "")}
 
     def _web_import(self) -> None:
         tracks = self._require_selection()
@@ -1771,7 +1778,8 @@ class MainWindow(QMainWindow):
         dialog = TagEditorDialog(tracks, self, self.write_options,
                                  siblings=self.model.all_tracks(),
                                  source=self.model.track(
-                                     self.files.currentIndex()))
+                                     self.files.currentIndex()),
+                                 **self._lookup_keys())
         dialog.exec()
         if dialog.renamed:
             self._rescan()              # paths moved; the model is stale

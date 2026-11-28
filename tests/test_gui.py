@@ -4633,3 +4633,57 @@ def test_about_mentions_matroska_and_both_platforms(qapp):
     for needle in (".mkv", ".webm", "MKVToolNix", "Linux and Windows"):
         assert needle in text, needle
     dlg.close()
+
+
+# --- lookups from the Tag Editor (2026-11-28) -------------------------------
+
+def test_editor_lookup_fills_fields_without_writing(qapp, library, jpeg_bytes):
+    """A lookup fills and ticks only what it found; Save writes it."""
+    folder, files = library
+    dlg = TagEditorDialog([tagio.read(files[0])])
+    assert dlg.btn_album_lookup.isVisibleTo(dlg)
+    assert dlg.btn_video_lookup.isVisibleTo(dlg)
+    dlg.inputs["composer"].setText("Typed by hand")
+    dlg.checks["composer"].setChecked(True)
+
+    n = dlg.fill_from({"title": "Breed", "track": "6", "track_total": "12",
+                       "year": "1991"}, [tagio.Picture(jpeg_bytes)])
+    assert n == 4                                  # 3 fields + the art
+    assert dlg.inputs["track"].num.text() == "6"
+    assert dlg.inputs["track"].total.text() == "12"
+    assert dlg.checks["title"].isChecked()         # per-track, still ticked
+    assert dlg.inputs["composer"].text() == "Typed by hand"
+    assert tagio.read(files[0]).values["title"] == "Smells Like Teen Spirit"
+
+    dlg._save_and_close()
+    got = tagio.read(files[0])
+    assert (got.values["title"], str(got.values["track"])) == ("Breed", "6")
+    assert got.values["composer"] == "Typed by hand"
+    assert got.pictures
+
+
+def test_editor_lookup_buttons_only_for_one_file(qapp, library):
+    folder, files = library
+    dlg = TagEditorDialog([tagio.read(p) for p in files])
+    assert not dlg.btn_album_lookup.isVisibleTo(dlg)
+    assert not dlg.btn_video_lookup.isVisibleTo(dlg)
+
+
+def test_album_lookup_for_one_file_starts_at_its_track(qapp, library):
+    from rifftag.gui.webimport import WebImportDialog
+    from rifftag.webimport import Album, TrackInfo
+    folder, files = library
+    track = tagio.read(files[1])                   # "In Bloom", track 2
+    dlg = WebImportDialog([track], fill_only=True)
+    album = Album("MusicBrainz", "x", "Nirvana", "Nevermind", "1991", tracks=[
+        TrackInfo(1, "Smells Like Teen Spirit"), TrackInfo(2, "In Bloom"),
+        TrackInfo(3, "Come as You Are")])
+    dlg._run = lambda *a, **k: None                # no cover fetch
+    dlg._show_album(album)
+    values = dlg.planned_writes()[0][1]
+    assert (values["title"], values["track"]) == ("In Bloom", "2")
+    assert values["track_total"] == "3"            # the album's, not "1"
+    dlg._write_tags()
+    assert dlg.filled_values["title"] == "In Bloom"
+    assert tagio.read(files[1]).values["title"] == "In Bloom"   # untouched
+    assert dlg.wrote == 0

@@ -77,10 +77,17 @@ class _Job(QObject):
 
 class WebImportDialog(QDialog):
     def __init__(self, tracks, parent=None, *, discogs_token: str = "",
-                 write_options=None):
+                 write_options=None, fill_only: bool = False):
         super().__init__(parent)
         self.tracks = list(tracks)
         self.write_options = write_options
+        #: Opened from the Tag Editor: hand the values back instead of
+        #: writing, so they land in the editor's fields for review and are
+        #: saved by its Save button. ``filled_values`` / ``filled_pictures``
+        #: carry them; None means nothing was chosen.
+        self.fill_only = fill_only
+        self.filled_values: dict | None = None
+        self.filled_pictures: list | None = None
         self.providers = [MusicBrainz(), Discogs(discogs_token)]
         self.results: list[Album] = []
         self.album: Album | None = None
@@ -239,7 +246,8 @@ class WebImportDialog(QDialog):
 
         back = QPushButton("← &Back to results")
         back.clicked.connect(lambda: self.pages.setCurrentIndex(0))
-        self.btn_write = QPushButton("&Write Tags")
+        self.btn_write = QPushButton("&Use in Editor" if self.fill_only
+                                     else "&Write Tags")
         self.btn_write.clicked.connect(self._write_tags)
         cancel = QPushButton("&Cancel")
         cancel.clicked.connect(self.reject)
@@ -376,12 +384,34 @@ class WebImportDialog(QDialog):
             f"{album.artist} — {album.album}   ({album.year})   "
             f"{len(album.tracks)} track(s), {album.total_time}   "
             f"[{album.provider}]")
+        if self.fill_only and len(self.tracks) == 1:
+            self._line_up_single(album)
         self._fill_pairs()
         self.pages.setCurrentIndex(1)
         self.cover = None
         self.cover_check.setChecked(False)
         self.cover_label.setText("looking for cover art…")
         self._run(self._provider().cover, self._show_cover, album)
+
+    def _line_up_single(self, album: Album) -> None:
+        """One file against a whole album: start at the right track.
+
+        Matching is positional, so a lone file would always get track 1.
+        Start from its title if the album has it, else its track number;
+        Move title ↑/↓ steps through the rest.
+        """
+        if not album.tracks:
+            return
+        values = self.tracks[0].values
+        title = str(values.get("title") or "").strip().casefold()
+        number = str(values.get("track") or "").split("/")[0].strip()
+        start = next((i for i, t in enumerate(album.tracks)
+                      if title and t.title.strip().casefold() == title), None)
+        if start is None and number.isdigit():
+            start = next((i for i, t in enumerate(album.tracks)
+                          if t.number == int(number)), None)
+        if start:
+            album.tracks = album.tracks[start:] + album.tracks[:start]
 
     def _fill_pairs(self) -> None:
         matched = align(len(self.tracks), self.album.tracks if self.album else [])
@@ -435,9 +465,12 @@ class WebImportDialog(QDialog):
         for file_track, found in zip(self.tracks, matched):
             if found is None:
                 continue
+            # The album's own count when filling one file from the editor:
+            # "1 of 1" would be wrong for track 7 of 12.
             values = self.album.values_for(
                 found, use_album_artist="album_artist" in wanted,
-                total=len(self.tracks))
+                total=(len(self.album.tracks) if self.fill_only
+                       else len(self.tracks)))
             kept = {k: v for k, v in values.items()
                     if k in wanted or k == "track_total"}
             if "track" not in wanted:
@@ -455,6 +488,11 @@ class WebImportDialog(QDialog):
                              "image/png" if self.cover[:4] == b"\x89PNG"
                              else "image/jpeg")]
                     if self.cover and self.cover_check.isChecked() else None)
+        if self.fill_only:
+            self.filled_values = dict(plans[0][1])
+            self.filled_pictures = pictures
+            self.accept()
+            return
         failures = []
         for file_track, values in plans:
             try:

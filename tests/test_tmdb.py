@@ -291,3 +291,15 @@ def test_the_dialog_closes_after_writing_the_last_movie(qapp, sample, tmp_path):
     _wait(qapp, lambda: not dlg.isVisible())
     assert dlg.result() == QDialog.DialogCode.Accepted and dlg.wrote == 1
     assert tagio.read(p).values["title"] == "Heat"
+
+
+def test_fill_only_hands_values_back_without_writing(qapp, sample, tmp_path):
+    from rifftag.gui.videolookup import VideoLookupDialog
+    p = sample("m4a", "x").rename(tmp_path / "Heat (1995).mp4")
+    dlg = VideoLookupDialog([tagio.read(p)], client=FakeClient(), fill_only=True)
+    assert dlg.btn_write_movie.text().replace("&", "") == "Use in Editor"
+    dlg._show_movie(Video("movie", 949, "Heat", "1995", "A crew..."))
+    dlg._write_movie()
+    assert dlg.filled_values == {"title": "Heat", "year": "1995",
+                                 "comment": "A crew..."}
+    assert dlg.wrote == 0 and "comment" not in tagio.read(p).values

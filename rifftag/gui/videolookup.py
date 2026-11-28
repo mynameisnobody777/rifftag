@@ -115,10 +115,16 @@ WRITING_NOTE = ("Writing… An MP4 is rewritten in full the first time it is "
 
 class VideoLookupDialog(QDialog):
     def __init__(self, tracks, parent=None, *, tmdb_key: str = "",
-                 write_options=None, client: TMDB | None = None):
+                 write_options=None, client: TMDB | None = None,
+                 fill_only: bool = False):
         super().__init__(parent)
         self.tracks = list(tracks)
         self.write_options = write_options
+        #: Opened from the Tag Editor: hand the values back rather than
+        #: writing (same contract as the album lookup's fill_only).
+        self.fill_only = fill_only
+        self.filled_values: dict | None = None
+        self.filled_pictures: list | None = None
         self.client = client or TMDB(tmdb_key)
         self.results: list[Video] = []
         self.video: Video | None = None
@@ -267,7 +273,8 @@ class VideoLookupDialog(QDialog):
 
         back = QPushButton("← &Back to results")
         back.clicked.connect(lambda: self.pages.setCurrentIndex(0))
-        self.btn_write_movie = QPushButton("&Write Tags")
+        self.btn_write_movie = QPushButton("&Use in Editor" if self.fill_only
+                                           else "&Write Tags")
         self.btn_write_movie.clicked.connect(self._write_movie)
         cancel = QPushButton("&Close")
         cancel.clicked.connect(self.reject)
@@ -312,7 +319,8 @@ class VideoLookupDialog(QDialog):
 
         back = QPushButton("← &Back to results")
         back.clicked.connect(lambda: self.pages.setCurrentIndex(0))
-        self.btn_write_tv = QPushButton("&Write Tags")
+        self.btn_write_tv = QPushButton("&Use in Editor" if self.fill_only
+                                        else "&Write Tags")
         self.btn_write_tv.clicked.connect(self._write_tv)
         cancel = QPushButton("&Close")
         cancel.clicked.connect(self.reject)
@@ -512,6 +520,10 @@ class VideoLookupDialog(QDialog):
         if not values and not pictures:
             QMessageBox.information(self, "TMDB", "Nothing ticked to write.")
             return
+        if self.fill_only:
+            self.filled_values, self.filled_pictures = values, pictures
+            self.accept()
+            return
         track = self.tracks[self.index]
         self._busy(True, WRITING_NOTE)
         self.writing = True
@@ -626,6 +638,10 @@ class VideoLookupDialog(QDialog):
         if not plans:
             QMessageBox.information(self, "TMDB",
                                     "No file matched an episode — nothing to write.")
+            return
+        if self.fill_only:
+            self.filled_values, self.filled_pictures = dict(plans[0][1]), pictures
+            self.accept()
             return
         self._busy(True, WRITING_NOTE)
         self.writing = True

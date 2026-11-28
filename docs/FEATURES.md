@@ -59,6 +59,16 @@ attribution TMDB's API terms require. The toolbar button is a drawn movie
 camera (beside the globe), drawn so it looks the same on Windows, which has no
 theme icons.
 
+**Lookups from the Tag Editor** (double-click a file; added 2026-11-28):
+**Album lookup…** and **Movie/TV lookup…** open the same two dialogs in
+*fill-only* mode — their button reads **Use in Editor**, nothing is written,
+and the answer fills and ticks only the fields it found (plus the art) in the
+editor, where Save / Save and Next writes them. Fields typed by hand first
+survive (`TagEditorDialog.fill_from`, unlike `copy_from`, which blanks what the
+source lacks). A lone file against a whole album starts at its own track —
+matched by title, else track number — with Move title ↑/↓ to step, and Track #
+total comes from the album, not "of 1". Single-file editing only.
+
 **Why the first write to an MP4 takes a minute:** most MP4s are "fast start" —
 the index (`moov`) sits before the video with no spare room, so growing the
 tags (a poster, especially) shifts the whole file: ~1 min for 2 GB on the USB
