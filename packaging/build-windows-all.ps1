@@ -86,6 +86,9 @@ $ver = $m.Groups[1].Value
 Good "Version: $ver"
 
 # --- build -----------------------------------------------------------
+# Native programs' output goes straight to the console and Windows PowerShell
+# 5.1's transcript does not record it; "2>&1 | Out-Host" routes it through
+# the host so a failed PyInstaller/ISCC run is in build_log.txt too.
 $exe = "$Work\dist\windows\RiffTag\RiffTag.exe"
 if ($SkipBuild -and (Test-Path $exe)) {
     Step 4 "Reusing the existing build (-SkipBuild)"
@@ -94,7 +97,7 @@ if ($SkipBuild -and (Test-Path $exe)) {
     if ($SkipBuild) { Write-Host "  Nothing built yet; building anyway." -ForegroundColor Yellow }
     Step 4 "Building RiffTag.exe (slow - PyInstaller)"
     Push-Location $Work
-    & powershell -ExecutionPolicy Bypass -File "$Work\packaging\build-windows.ps1"
+    & powershell -ExecutionPolicy Bypass -File "$Work\packaging\build-windows.ps1" 2>&1 | Out-Host
     Pop-Location
     if (-not (Test-Path $exe)) { Fail "No exe at $exe"; exit 1 }
     Good "Built: $exe"
@@ -170,11 +173,11 @@ if (-not $iscc) {
 } else {
     Write-Host "  ISCC: $iscc"
     $iss = "$Work\build\rifftag.iss"
-    & $py "$Work\packaging\make_iss.py" $iss $ver
+    & $py "$Work\packaging\make_iss.py" $iss $ver 2>&1 | Out-Host
     if (-not (Test-Path $iss)) {
         Fail "make_iss.py wrote nothing"
     } else {
-        & $iscc /Q $iss
+        & $iscc /Q $iss 2>&1 | Out-Host
         $setup = "$Work\dist\RiffTag-$ver-Setup.exe"
         if (Test-Path $setup) {
             Copy-Item $setup "$Share\dist\RiffTag-$ver-Setup.exe" -Force
