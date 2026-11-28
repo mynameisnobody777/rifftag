@@ -40,6 +40,13 @@ def desktop(monkeypatch):
     """Pretend the desktop said dark / light / nothing at all."""
     def _set(answer):
         monkeypatch.setattr(theme, "_forced_preference", answer)
+        if answer is None:
+            # _forced_preference=None means "not forced", so the real desktop
+            # would still be asked - a light-mode Windows VM answered "light"
+            # and failed the fallback test (2026-11-28). Silence every source.
+            for name in ("_qt_colour_scheme", "_windows_prefers_dark",
+                         "_portal_prefers_dark", "_gtk_prefers_dark"):
+                monkeypatch.setattr(theme, name, lambda: None)
     return _set
 
 
