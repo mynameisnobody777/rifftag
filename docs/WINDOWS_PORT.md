@@ -269,7 +269,7 @@ reasoning, and none of them are Windows-specific:
   `HKCU\Software\rifftag` instead — check this before running the GUI tests on
   a machine Dave cares about).
 
-## Matroska on Windows (added 2026-11-27, not yet tried on the VM)
+## Matroska on Windows (added 2026-11-27, verified in the VM 2026-11-28)
 
 `.mkv/.mka/.webm` need MKVToolNix. `rifftag/matroska.py` looks on PATH, then
 in a `mkvtoolnix\` folder beside `RiffTag.exe`, then in
@@ -279,6 +279,8 @@ bundle later, copy `mkvmerge.exe`, `mkvextract.exe`, `mkvpropedit.exe` into
 `dist\RiffTag\mkvtoolnix\` (GPL-2+, compatible with RiffTag's GPL-3).
 Subprocesses use `CREATE_NO_WINDOW` so no console flashes.
 
-First thing to check on the VM: `python -m pytest tests/test_matroska.py -q`
-with MKVToolNix installed — particularly the non-ASCII file name test, since
-the `C.UTF-8` locale trick is a no-op on Windows.
+Verified 2026-11-28: full suite (711) passes in the VM with MKVToolNix
+installed by `winget install --id MoritzBunkus.MKVToolNix -e`, non-ASCII test
+included. The first run's six failures were test helpers calling `mkvextract`
+by bare name with `PATH=/usr/bin:/bin` — test code must find tools through
+`matroska.tool()` exactly as the app does, never by bare name.
