@@ -43,7 +43,7 @@ Write-Host ("=" * 58)
 
 # --- the share -------------------------------------------------------
 if (-not (Test-Path "$Share\packaging\build-windows.ps1")) {
-    Fail "$Share is not reachable. Run map_brain.bat first."
+    Fail "$Share is not reachable. Run "1 - Connect drives.bat" first."
     exit 1
 }
 Good "Share OK: $Share"

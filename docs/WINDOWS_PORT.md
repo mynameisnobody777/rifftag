@@ -126,8 +126,9 @@ Windows allows **one user account per file server**. The server denies
 `winmusic` access to `claude-brain`; `dave` can read Music, DaveShared and
 claude-brain. So everything maps as `dave`, and the scripts in the WinBoat
 shared folder (`~/.winboat/shared` on Linux) reuse a live session rather than
-asking again: `map_brain.bat` -> `B:`, `music.bat` -> `M:`, `shared.bat` ->
-`S:`. Never reintroduce the winmusic credentials — that is what kept knocking
+asking again: `1 - Connect drives.bat` maps `B:`, `M:` and `S:` in one go (run it
+every time the VM starts; it saves the password in the VM's Credential Manager on
+first run). Never reintroduce the winmusic credentials — that is what kept knocking
 `B:` offline.
 
 ## The three known Linux-isms

@@ -7,7 +7,7 @@ REM
 REM You can skip this file entirely and run the same thing by hand:
 REM   powershell -ExecutionPolicy Bypass -File B:\apps\rifftag\packaging\build-windows-all.ps1
 if not exist B:\apps\rifftag\packaging\build-windows-all.ps1 (
-    echo  *** B: is not mapped. Run map_brain.bat first.
+    echo  *** B: is not mapped. Run "1 - Connect drives.bat" first.
     pause & exit /b 1
 )
 powershell -ExecutionPolicy Bypass -NoProfile -Command ^
