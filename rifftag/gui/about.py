@@ -23,7 +23,7 @@ from ..webimport import __version__ as _web_version
 from .splash import logo_path
 from .theme import is_dark
 
-VERSION = "0.4"
+VERSION = "0.4.1"
 TAGLINE = "Edit. Rename. Organize."
 
 #: Where "support RiffTag" points. One link, in this dialog, and nowhere
@@ -38,7 +38,7 @@ FAMILY_NAMES = {
     "vorbis": "Vorbis comments",
     "ape": "APEv2",
     "asf": "Windows Media",
-    "matroska": "Matroska (needs MKVToolNix)",
+    "matroska": "Matroska video &amp; audio (needs MKVToolNix)",
 }
 
 
@@ -74,16 +74,20 @@ class AboutDialog(QDialog):
         body.setHtml(f"""
             <p style='text-align:center'><b>RiffTag {VERSION}</b><br>
             {TAGLINE}</p>
-            <p>A music tag editor and organiser for Linux: rename files and
-            folders from their tags, read tags back out of file names, edit
-            whole albums at once, and pull album details from the web.</p>
+            <p>A tag editor and organiser for Linux and Windows: rename files
+            and folders from their tags, read tags back out of file names,
+            edit whole albums at once, and pull album details from the web.</p>
+            <p>Music first, and video too: Matroska files (<b>.mkv</b>,
+            <b>.mka</b>, <b>.webm</b>) get their titles, artists, years and
+            cover art edited in place, without re-encoding or remuxing.</p>
             <p><b>Supported formats</b></p>
             {format_table_html()}
             <p><b>Online lookup</b>: MusicBrainz (no account needed) and
             Discogs (free personal token). freedb, which the original used,
             shut down in 2020.</p>
             <p>Tag reading and writing by
-            <a href='https://mutagen.readthedocs.io/'>mutagen</a>;
+            <a href='https://mutagen.readthedocs.io/'>mutagen</a>, and by
+            <a href='https://mkvtoolnix.download/'>MKVToolNix</a> for Matroska;
             interface by PyQt6.</p>
             <p><b>Free software</b>, under the {LICENCE}. You may use, study,
             change and share it; anything you pass on stays free too.</p>
@@ -91,7 +95,9 @@ class AboutDialog(QDialog):
             you can <a href='{SUPPORT_URL}'>buy me a coffee</a> — entirely
             optional, and it will never ask you again.</p>
         """)
-        body.setMinimumSize(430, 300)
+        # Tall enough that the whole format table shows without scrolling: the
+        # Matroska row sat exactly on the fold and Dave missed it (2026-11-28).
+        body.setMinimumSize(460, 470)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)

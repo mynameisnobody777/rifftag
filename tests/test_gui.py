@@ -16,7 +16,7 @@ pytest.importorskip("PyQt6.QtWidgets")
 
 from PyQt6.QtCore import Qt                                      # noqa: E402
 from PyQt6.QtWidgets import (QApplication, QLabel,              # noqa: E402
-                             QLineEdit, QMenu)
+                             QLineEdit, QMenu, QTextBrowser)
 
 from rifftag import tagio                                       # noqa: E402
 from rifftag.cli import parse_targets                           # noqa: E402
@@ -4623,3 +4623,13 @@ def test_folder_row_is_expanded_while_the_scan_is_still_running(qapp, library):
     w._scan_found(7, [tagio.read(p) for p in files[:1]])
     assert w.files.isExpanded(w.model.index(0, 0))
     w.close()
+
+
+def test_about_mentions_matroska_and_both_platforms(qapp):
+    """Dave opened About on Windows and saw no sign of MKV support (2026-11-28)."""
+    from rifftag.gui.about import AboutDialog
+    dlg = AboutDialog()
+    text = dlg.findChild(QTextBrowser).toPlainText()
+    for needle in (".mkv", ".webm", "MKVToolNix", "Linux and Windows"):
+        assert needle in text, needle
+    dlg.close()
