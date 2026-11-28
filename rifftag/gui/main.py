@@ -13,7 +13,7 @@ from PyQt6.QtCore import (QDir, QItemSelectionModel, QModelIndex, QSettings,
                           QSize, Qt, QThread, QTimer)
 # QFileSystemModel lives in QtGui in Qt6, not QtWidgets as in Qt5.
 from PyQt6.QtGui import (QAction, QFileSystemModel, QIcon, QKeySequence,
-                         QPixmap)
+                         QPalette, QPixmap)
 from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox,
                              QStyle,
                              QFrame, QMenu, QToolBar, QToolButton,
@@ -48,7 +48,7 @@ from .splash import app_icon, show_splash, wordmark
 from .statusbar import StatusTotals
 from .theme import (Theme, apply as apply_theme, capture_system_palette,
                     themed_icon, use_portable_style)
-from .videolookup import VideoLookupDialog
+from .videolookup import VideoLookupDialog, camera_icon
 from .webimport import WebImportDialog
 from .tabs import FilenameToTagTab, MultiTagTab, RenameTab
 from .tageditor import TagEditorDialog
@@ -526,9 +526,7 @@ class MainWindow(QMainWindow):
             act = QAction(label.split("\t")[0], self)
             act.triggered.connect(slot)
             if slot == self._video_lookup:
-                # The only Tools entry without a toolbar button, so it gets
-                # its own key rather than borrowing one from the toolbar.
-                act.setShortcut("Ctrl+Shift+W")
+                act.setShortcut("Ctrl+Shift+W")   # the toolbar button has none
             tools.addAction(act)
 
         opts = self.menuBar().addMenu("&Options")
@@ -708,6 +706,13 @@ class MainWindow(QMainWindow):
         act("episode", "Auto fill episode #…", self._autofill_episode)
         bar.addSeparator()
         act("web", "Get album titles from the Web…", self._web_import, "Ctrl+W")
+        self.act_tmdb = QAction(
+            camera_icon(self.palette().color(QPalette.ColorRole.WindowText)),
+            "Get movie / TV info from TMDB…", self)
+        self.act_tmdb.setToolTip(
+            "Get movie / TV info from TMDB…   (Ctrl+Shift+W)")
+        self.act_tmdb.triggered.connect(self._video_lookup)
+        bar.addAction(self.act_tmdb)
         act("convert", "Convert audio format…", self._convert)
 
         stored = str(self.settings.value("toolbar_place", "list") or "list")
@@ -802,6 +807,11 @@ class MainWindow(QMainWindow):
         for action, candidate in self._theme_actions.items():
             action.setChecked(candidate is theme)
         self._refresh_colours()
+        if hasattr(self, "act_tmdb"):
+            # Drawn, not themed, so it has to be redrawn in the new colour.
+            self.act_tmdb.setIcon(camera_icon(
+                QApplication.instance().palette().color(
+                    QPalette.ColorRole.WindowText)))
 
     def _follow_desktop_changes(self) -> None:
         """Repaint when the desktop flips light/dark while we are running.

@@ -22,8 +22,9 @@ the album lookup (see ``webimport._park`` for why threads are held globally).
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QThread, Qt, QUrl
-from PyQt6.QtGui import QDesktopServices, QPixmap
+from PyQt6.QtCore import QPointF, QRectF, QThread, Qt, QUrl
+from PyQt6.QtGui import (QColor, QDesktopServices, QIcon, QPainter,
+                         QPixmap, QPolygonF)
 from PyQt6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox,
                              QDialog, QGridLayout, QGroupBox, QHBoxLayout,
                              QHeaderView, QLabel, QLineEdit, QMessageBox,
@@ -56,6 +57,60 @@ TV_FIELDS = (
     ("comment", "Description (Comment)", True),
 )
 _NUMBER_KEYS = ("season_number", "episode_number", "episode_id")
+
+
+def camera_icon(colour: QColor) -> QIcon:
+    """A movie camera — two film reels on a body, lens to the right.
+
+    Drawn rather than taken from the icon theme: Windows has no theme icons
+    at all, and the freedesktop names (camera-video, video-x-generic) vary
+    from a webcam to a film strip between Linux themes. Dave asked for a
+    movie camera. Drawn in the palette's text colour so it sits with the
+    other monochrome buttons in light and dark alike.
+    """
+    icon = QIcon()
+    for size in (16, 20, 24, 32, 40, 48):
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.scale(size / 24.0, size / 24.0)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(colour)
+        p.drawEllipse(QRectF(2.5, 2.0, 7.5, 7.5))           # rear reel
+        p.drawEllipse(QRectF(9.5, 2.0, 7.5, 7.5))           # front reel
+        p.drawRoundedRect(QRectF(2.0, 10.0, 14.5, 9.0), 1.8, 1.8)   # body
+        p.drawPolygon(QPolygonF([QPointF(16.0, 13.0), QPointF(22.0, 10.0),
+                                 QPointF(22.0, 19.0), QPointF(16.0, 16.0)]))
+        # Hub holes, so the reels read as reels and not as two dots.
+        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+        p.drawEllipse(QRectF(5.25, 4.75, 2.0, 2.0))
+        p.drawEllipse(QRectF(12.25, 4.75, 2.0, 2.0))
+        p.end()
+        icon.addPixmap(pm)
+    return icon
+
+
+def _write_all(plans, pictures, options) -> tuple[int, list[str]]:
+    """Runs on the worker thread. Returns (files written, failures)."""
+    wrote, failures = 0, []
+    for track, values in plans:
+        try:
+            write(track.path, values, pictures=pictures, options=options)
+            wrote += 1
+        except TagError as exc:
+            failures.append(f"{track.path.name}: {exc}")
+    return wrote, failures
+
+
+#: Shown while writing. The first edit of a "fast start" MP4 (index ahead of
+#: the video, no spare room — how most downloads and Handbrake output come)
+#: has to rewrite the whole file: ~1 minute for 2 GB on a USB disk, measured
+#: 2026-11-28. mutagen then leaves ~0.1% spare room, so later edits of that
+#: file are instant. Matroska is always edited in place.
+WRITING_NOTE = ("Writing… An MP4 is rewritten in full the first time it is "
+                "tagged (about a minute for a 2 GB film); later edits are "
+                "instant, and MKV files always are.")
 
 
 class VideoLookupDialog(QDialog):
@@ -452,12 +507,16 @@ class VideoLookupDialog(QDialog):
             QMessageBox.information(self, "TMDB", "Nothing ticked to write.")
             return
         track = self.tracks[self.index]
-        try:
-            write(track.path, values, pictures=pictures,
-                  options=self.write_options)
-            self.wrote += 1
-        except TagError as exc:
-            QMessageBox.warning(self, "TMDB", f"{track.path.name}: {exc}")
+        self._busy(True, WRITING_NOTE)
+        self._run(_write_all, self._movie_written, [(track, values)],
+                  pictures, self.write_options)
+
+    def _movie_written(self, result) -> None:
+        wrote, failures = result
+        self.wrote += wrote
+        self._busy(False)
+        if failures:
+            QMessageBox.warning(self, "TMDB", "\n".join(failures))
             return
         self._next_movie()
 
@@ -560,23 +619,34 @@ class VideoLookupDialog(QDialog):
             QMessageBox.information(self, "TMDB",
                                     "No file matched an episode — nothing to write.")
             return
-        failures = []
-        for track, values in plans:
-            try:
-                write(track.path, values, pictures=pictures,
-                      options=self.write_options)
-                self.wrote += 1
-            except TagError as exc:
-                failures.append(f"{track.path.name}: {exc}")
+        self._busy(True, WRITING_NOTE)
+        self._run(_write_all, self._tv_written, plans, pictures,
+                  self.write_options)
+
+    def _tv_written(self, result) -> None:
+        wrote, failures = result
+        self.wrote += wrote
+        self._busy(False)
         if failures:
             QMessageBox.warning(self, "TMDB",
                                 "Some files failed:\n" + "\n".join(failures[:12]))
         self.accept()
 
     def done(self, result: int) -> None:
+        if self.writing:
+            return              # never abandon a write halfway through a file
         self._stop_thread()
         super().done(result)
 
+    @property
+    def writing(self) -> bool:
+        return (self._job is not None and self._thread is not None
+                and self._thread.isRunning()
+                and getattr(self._job, "_fn", None) is _write_all)
+
     def closeEvent(self, event) -> None:
+        if self.writing:
+            event.ignore()
+            return
         self._stop_thread()
         super().closeEvent(event)

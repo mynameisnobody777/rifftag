@@ -178,6 +178,16 @@ class FakeClient:
         return None
 
 
+def _wait(qapp, done, seconds=20):
+    """Writes now run on a worker thread; pump events until they land."""
+    import time
+    end = time.monotonic() + seconds
+    while not done() and time.monotonic() < end:
+        qapp.processEvents()
+        time.sleep(0.01)
+    assert done(), "timed out waiting for the worker"
+
+
 def _dialog(tracks):
     from rifftag.gui.videolookup import VideoLookupDialog
     return VideoLookupDialog(tracks, client=FakeClient())
@@ -197,6 +207,7 @@ def test_movie_files_are_walked_one_at_a_time(qapp, sample, tmp_path):
     assert dlg.planned_movie() == {"title": "The Matrix", "year": "1999",
                                    "comment": "Neo..."}
     dlg._write_movie()
+    _wait(qapp, lambda: dlg.index == 1)
     got = tagio.read(a).values
     assert (got["title"], got["year"], got["comment"]) == ("The Matrix", "1999", "Neo...")
     assert "genre" not in got or not got["genre"]
@@ -229,6 +240,7 @@ def test_tv_files_match_episodes_by_their_names(qapp, sample, tmp_path):
     assert len(dlg.planned_tv()) == 3
 
     dlg._write_tv()
+    _wait(qapp, lambda: dlg.wrote == 3)
     got = tagio.read(e2).values
     assert got["show_title"] == "Breaking Bad"
     assert str(got["season_number"]) == "1" and str(got["episode_number"]) == "2"
@@ -251,3 +263,14 @@ def test_about_carries_the_tmdb_notice(qapp):
     text = dlg.findChild(QTextBrowser).toPlainText()
     assert "uses the TMDB API but is not endorsed or certified by TMDB" in text
     dlg.close()
+
+
+def test_the_camera_icon_draws(qapp):
+    from PyQt6.QtGui import QColor
+    from rifftag.gui.videolookup import camera_icon
+    icon = camera_icon(QColor("#202020"))
+    assert not icon.isNull()
+    image = icon.pixmap(24, 24).toImage()
+    opaque = sum(1 for x in range(24) for y in range(24)
+                 if image.pixelColor(x, y).alpha() > 0)
+    assert 120 < opaque < 400, opaque       # a shape, not empty, not a block

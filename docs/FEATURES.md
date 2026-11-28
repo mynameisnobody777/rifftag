@@ -55,7 +55,19 @@ its name (editable in the table). It writes title, year, genre, description
 (as Comment), show / season / episode / `S01E02` for TV, and the poster
 (season poster preferred) as cover art. Plex reads these when its own online
 match finds nothing, which is the home-video case. About carries the
-attribution TMDB's API terms require.
+attribution TMDB's API terms require. The toolbar button is a drawn movie
+camera (beside the globe), drawn so it looks the same on Windows, which has no
+theme icons.
+
+**Why the first write to an MP4 takes a minute:** most MP4s are "fast start" —
+the index (`moov`) sits before the video with no spare room, so growing the
+tags (a poster, especially) shifts the whole file: ~1 min for 2 GB on the USB
+disk. mutagen then leaves ~0.1% spare room inside `moov`, so every later edit
+of that file is instant (measured on Coyote vs. Acme: 2 MB `free` after the
+first write). Matroska is always edited in place. The writes run on a worker
+thread with a status line saying so, and the dialog refuses to close mid-write.
+Moving `moov` to the end to avoid the rewrite was considered and rejected:
+atom surgery on Dave's films, and it makes them worse for streaming.
 
 The folder tree renames in place: click, pause, click again (or F2), as in the
 original. The three tabs sit **above** the file list, with the **colour key**
