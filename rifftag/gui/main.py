@@ -57,9 +57,18 @@ from .tageditor import TagEditorDialog
 APP = "RiffTag"
 ORG = "rifftag"
 
+#: Ready-made masks for films and episodes, in Plex / Jellyfin's naming.
+#: Added to an existing saved list once (see _add_video_presets), so people
+#: who already customised their masks get them too.
+VIDEO_RENAME_MASKS = [
+    "%2 (%4)",                          # Heat (1995)
+    "%swt - %sxe - %2",                 # Show - 1x01 - Title
+    "%swt - %see - %2",                 # Show - S01E01 - Title
+    "%swt\\Season %snr\\%swt - %see - %2",
+]
 DEFAULT_RENAME_MASKS = [
     "%6 %2", "%1 - %2", "%6 - %1 - %2", "%1 - %3 - %6 - %2",
-    "%1 - %3\\%6 %2", "%aa\\%3\\%6 %2",
+    "%1 - %3\\%6 %2", "%aa\\%3\\%6 %2", *VIDEO_RENAME_MASKS,
 ]
 DEFAULT_PARSE_MASKS = [
     "%6 %1 - %2", "%1 - %2", "%6 - %2", "%1 - %3\\%6 %2", "%6 %2",
@@ -240,7 +249,8 @@ class MainWindow(QMainWindow):
         self.multi_tab = MultiTagTab()
         self.parse_tab = FilenameToTagTab()
         self.rename_tab.mask_row.set_masks(
-            self._stored("rename_masks", DEFAULT_RENAME_MASKS))
+            self._add_video_presets(
+                self._stored("rename_masks", DEFAULT_RENAME_MASKS)))
         self.parse_tab.mask_row.set_masks(
             self._stored("parse_masks", DEFAULT_PARSE_MASKS))
 
@@ -1041,6 +1051,13 @@ class MainWindow(QMainWindow):
             return raw.lower() not in ("false", "0", "")
         return bool(raw)
 
+    def _add_video_presets(self, masks: list[str]) -> list[str]:
+        """Append the video masks to a saved list, once, never twice."""
+        if self.settings.value("video_presets_added", False, type=bool):
+            return masks
+        self.settings.setValue("video_presets_added", True)
+        return masks + [m for m in VIDEO_RENAME_MASKS if m not in masks]
+
     def _stored(self, key: str, default: list[str]) -> list[str]:
         raw = self.settings.value(key)
         try:
@@ -1731,12 +1748,17 @@ class MainWindow(QMainWindow):
             return
         key = str(self.settings.value("tmdb_key", "") or "")
         dialog = VideoLookupDialog(tracks, self, tmdb_key=key,
-                                   write_options=self.write_options)
+                                   write_options=self.write_options,
+                                   settings=self.settings)
         dialog.exec()
         if dialog.wrote:
             self.statusBar().showMessage(
-                f"Wrote TMDB info into {dialog.wrote} file(s)")
-            self._refresh_tracks(tracks)
+                f"Wrote TMDB info into {dialog.wrote} file(s)"
+                + (f", renamed {dialog.renamed}" if dialog.renamed else ""))
+            if dialog.renamed:
+                self._rescan()          # paths moved; the model is stale
+            else:
+                self._refresh_tracks(tracks)
 
     def _embed_subtitles(self) -> None:
         tracks = self._require_selection()

@@ -123,6 +123,11 @@ DERIVED_VARS: dict[str, str] = {
     "%bit": "bit_depth",
     "%enc": "encoder",
     "%rnd": "random",
+    # Video naming (2026-11-28). Plex and Jellyfin both read
+    # "Show - 1x01 - Title" and "Show - S01E01 - Title"; the plain %snr/%enr
+    # are zero-padded as counters, which gives "01x01".
+    "%sxe": "sxe",          # 1x01
+    "%see": "s00e00",       # S01E01
 }
 
 #: ``%d`` means "something is here, throw it away" when parsing a file name.

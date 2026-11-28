@@ -73,6 +73,32 @@ Free space is checked first. Languages already inside are skipped. Non-UTF-8
 .srt beside an MP4, and an ffmpeg remux risks the iTunes tags. Engine:
 `rifftag/subtitles.py`; window: `gui/subembed.py`.
 
+**Plex / Jellyfin naming and episode pictures** (2026-11-28, 0.6). Two ways,
+on purpose — Dave likes a program to offer more than one route:
+
+* *In the TMDB window*, "After writing": **Rename** — movies to `Title (Year)`,
+  episodes to `Show - 1x01 - Title` (Dave's form; Plex and Jellyfin share it)
+  or `Show - S01E01 - Title` — and **save the picture beside the file** as
+  `<same name>.jpg`, which Plex and Jellyfin use as the thumbnail. TV also
+  chooses the **picture**: the season poster for all, or **each episode's own
+  still** (TMDB's 16:9 frame, `still_path` in the season data; fetched per
+  episode on the worker; an episode without one falls back to the poster).
+  Choices are remembered (QSettings `tmdb_*`). Hidden in fill-only mode
+  (renaming under an open Tag Editor would strand it).
+* *In the Rename tab*: new variables **%sxe** (`1x01`) and **%see**
+  (`S01E01`) — needed because %snr/%enr are zero-padded counters ("01x01") —
+  and four presets (`%2 (%4)`, `%swt - %sxe - %2`, `%swt - %see - %2`,
+  `%swt\Season %snr\%swt - %see - %2`), appended once to an existing saved
+  list (`video_presets_added`).
+
+Both rename through `renamer.plan/apply`, so clashes, NTFS case-only renames
+and undo work as for music, and **video sidecars now travel with any rename**:
+`renamer.VIDEO_SIDECAR_SUFFIXES` (.srt .ass .ssa .sub .idx .jpg .png .nfo)
+match `<stem>.<anything>.<ext>`, so `Heat (1995).eng.srt` follows the film.
+Colons: Tag&Rename's rule turns `:` into `_` (pinned by a test, kept for
+music); TMDB renames pass `RenderOptions(colon_dash=True)` so "Star Trek:
+Picard" becomes "Star Trek - Picard".
+
 **Video in the player** (added 2026-11-28, 0.6): the corner player stays the
 remote; when the current file has video a separate window opens
 (`gui/videowindow.py`, geometry remembered) with its own bar — play/pause,

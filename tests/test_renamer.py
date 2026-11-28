@@ -206,3 +206,19 @@ def test_a_case_only_change_is_never_called_unchanged():
                              Path("/music/Lithium.mp3"))
     assert _is_same_path(Path("/music/lithium.mp3"),
                          Path("/music/lithium.mp3"))
+
+
+def test_video_sidecars_follow_a_rename(tmp_path):
+    """Subtitles named with a language, a thumbnail and an .nfo all move."""
+    from rifftag.renamer import _find_companions
+    src = tmp_path / "heat.1995.mkv"
+    src.touch()
+    for n in ("heat.1995.eng.srt", "heat.1995.en.forced.srt", "heat.1995.jpg",
+              "heat.1995.nfo", "heat.1995.mkv.bak", "heat.1995 extras.srt"):
+        (tmp_path / n).touch()
+    moves = {a.name: b.name for a, b in
+             _find_companions(src, tmp_path / "Heat (1995).mkv")}
+    assert moves == {"heat.1995.eng.srt": "Heat (1995).eng.srt",
+                     "heat.1995.en.forced.srt": "Heat (1995).en.forced.srt",
+                     "heat.1995.jpg": "Heat (1995).jpg",
+                     "heat.1995.nfo": "Heat (1995).nfo"}

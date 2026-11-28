@@ -177,6 +177,11 @@ class Track:
             bit_depth=self.info.bit_depth or "",
             encoder=self.values.get("encoded_by", ""),
         )
+        season = str(self.values.get("season_number") or "").split("/")[0].strip()
+        episode = str(self.values.get("episode_number") or "").split("/")[0].strip()
+        if season.isdigit() and episode.isdigit():
+            v["sxe"] = f"{int(season)}x{int(episode):02d}"
+            v["s00e00"] = f"S{int(season):02d}E{int(episode):02d}"
         return {k: val for k, val in v.items() if val not in (None, "")}
 
 

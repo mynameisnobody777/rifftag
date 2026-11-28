@@ -194,3 +194,13 @@ def test_parse_rejects_derived_variables():
 def test_describe_matches_the_screenshot_preview():
     """The help screenshot shows mask '%6 %2' previewing as '<Track #> <Title>'."""
     assert describe("%6 %2") == "<Track #> <Title>"
+
+
+def test_episode_number_variables():
+    from rifftag.masks import RenderOptions
+    values = {"show_title": "Show: Two", "sxe": "1x01", "s00e00": "S01E01",
+              "title": "Pilot"}
+    assert render("%swt - %sxe - %2", values) == "Show_ Two - 1x01 - Pilot"
+    assert render("%swt - %see - %2", values,
+                  options=RenderOptions(colon_dash=True)) == \
+        "Show - Two - S01E01 - Pilot"

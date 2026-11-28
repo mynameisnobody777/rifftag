@@ -26,13 +26,15 @@ from PyQt6.QtCore import QPointF, QRectF, QThread, Qt, QUrl
 from PyQt6.QtGui import (QColor, QDesktopServices, QIcon, QPainter,
                          QPixmap, QPolygonF)
 from PyQt6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox,
-                             QDialog, QGridLayout, QGroupBox, QHBoxLayout,
+                             QComboBox, QDialog, QGridLayout, QGroupBox, QHBoxLayout,
                              QHeaderView, QLabel, QLineEdit, QMessageBox,
                              QPushButton, QRadioButton, QStackedWidget,
                              QTableWidget, QTableWidgetItem, QTextBrowser,
                              QVBoxLayout, QWidget)
 
-from ..tagio import Picture, TagError, write
+from .. import renamer
+from ..masks import RenderOptions
+from ..tagio import Picture, TagError, read, write
 from ..tmdb import (KEY_HINT, TMDB, Episode, Video, episode_values, guess,
                     movie_values)
 from ..webimport import WebImportError
@@ -91,16 +93,65 @@ def camera_icon(colour: QColor) -> QIcon:
     return icon
 
 
-def _write_all(plans, pictures, options) -> tuple[int, list[str]]:
-    """Runs on the worker thread. Returns (files written, failures)."""
-    wrote, failures = 0, []
-    for track, values in plans:
+#: Rename choices: (label, mask). The masks are the Rename tab's own
+#: (renamer.plan does the work), so clashes, case-only renames on NTFS and
+#: sidecars travelling along (…eng.srt, .jpg) behave exactly as there.
+MOVIE_NAMES = (("Title (Year)", "%2 (%4)"),)
+TV_NAMES = (("Show - 1x01 - Title", "%swt - %sxe - %2"),
+            ("Show - S01E01 - Title", "%swt - %see - %2"))
+
+
+def _write_all(plans, pictures, options, *, client=None, stills=None,
+               embed: bool = True, save_jpg: bool = False,
+               mask: str | None = None) -> tuple[int, list[str], int]:
+    """Runs on the worker thread.
+
+    ``plans`` is [(track, values)]; ``stills`` (optional) is a TMDB image
+    path per plan — an episode's own still — fetched here, one by one, with
+    ``pictures`` as the fallback when an episode has none. Then: tags, the
+    picture embedded (``embed``) and/or saved beside the file as .jpg
+    (``save_jpg``), and finally a rename by ``mask``.
+
+    Returns (files written, failure messages, files renamed).
+    """
+    wrote, failures, renamed = 0, [], 0
+    for i, (track, values) in enumerate(plans):
+        pics = pictures
+        if stills and i < len(stills) and stills[i] and client is not None:
+            data = client.poster(stills[i])
+            if data:
+                pics = [Picture(data, "image/jpeg")]
         try:
-            write(track.path, values, pictures=pictures, options=options)
+            write(track.path, values, pictures=pics if embed else None,
+                  options=options)
             wrote += 1
         except TagError as exc:
             failures.append(f"{track.path.name}: {exc}")
-    return wrote, failures
+            continue
+        if save_jpg and pics:
+            ext = ".png" if pics[0].mime == "image/png" else ".jpg"
+            try:
+                track.path.with_suffix(ext).write_bytes(pics[0].data)
+            except OSError as exc:
+                failures.append(f"{track.path.name}: picture not saved: {exc}")
+        if mask:
+            steps = renamer.plan([read(track.path)], mask,
+                                 on_collision_number=False,
+                                 options=RenderOptions(colon_dash=True))
+            for step in steps:
+                if step.status in (renamer.Status.UNCHANGED,):
+                    continue
+                if not step.will_move:
+                    failures.append(f"{track.path.name}: not renamed — "
+                                    f"{step.message or step.status.value}")
+                    continue
+                tx = renamer.apply([step])
+                if tx.failures:
+                    failures.append(f"{track.path.name}: not renamed — "
+                                    f"{tx.failures[0][1]}")
+                else:
+                    renamed += 1
+    return wrote, failures, renamed
 
 
 #: Shown while writing. The first edit of a "fast start" MP4 (index ahead of
@@ -116,9 +167,13 @@ WRITING_NOTE = ("Writing… An MP4 is rewritten in full the first time it is "
 class VideoLookupDialog(QDialog):
     def __init__(self, tracks, parent=None, *, tmdb_key: str = "",
                  write_options=None, client: TMDB | None = None,
-                 fill_only: bool = False):
+                 fill_only: bool = False, settings=None):
         super().__init__(parent)
         self.tracks = list(tracks)
+        #: remembers the after-writing choices (rename, .jpg, stills)
+        self.settings = settings
+        #: files renamed, so the main window knows to rescan
+        self.renamed = 0
         self.write_options = write_options
         #: Opened from the Tag Editor: hand the values back rather than
         #: writing (same contract as the album lookup's fill_only).
@@ -150,6 +205,13 @@ class VideoLookupDialog(QDialog):
         self.pages.addWidget(self._build_search_page())
         self.pages.addWidget(self._build_movie_page())
         self.pages.addWidget(self._build_tv_page())
+        for key, widget in (("movie_rename", self.movie_rename),
+                            ("movie_jpg", self.movie_jpg),
+                            ("tv_rename", self.tv_rename),
+                            ("tv_jpg", self.tv_jpg),
+                            ("tv_name_style", self.tv_name_style),
+                            ("tv_picture", self.tv_picture)):
+            self._remember(key, widget)
         root = QVBoxLayout(self)
         root.addWidget(self.pages)
         self.status = QLabel("")
@@ -244,7 +306,7 @@ class VideoLookupDialog(QDialog):
         label = QLabel("no poster")
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label.setMinimumSize(170, 250)
-        check = QCheckBox("Poster as cover art")
+        check = QCheckBox("Embed as cover art")
         box = QGroupBox("Poster")
         lay = QVBoxLayout(box)
         lay.addWidget(label, 1)
@@ -284,9 +346,14 @@ class VideoLookupDialog(QDialog):
         buttons.addWidget(self.btn_write_movie)
         buttons.addWidget(cancel)
 
+        self.movie_rename = QCheckBox("Rename the file to “Title (Year)”")
+        self.movie_jpg = QCheckBox("Save the poster beside the file (.jpg)")
+        self.movie_after = self._after_box(self.movie_rename, self.movie_jpg)
+
         left = QVBoxLayout()
         left.addWidget(self.movie_text, 1)
         left.addWidget(fields)
+        left.addWidget(self.movie_after)
         body = QHBoxLayout()
         body.addLayout(left, 3)
         body.addWidget(art, 1)
@@ -330,10 +397,32 @@ class VideoLookupDialog(QDialog):
         buttons.addWidget(self.btn_write_tv)
         buttons.addWidget(cancel)
 
+        self.tv_picture = QComboBox()
+        self.tv_picture.addItem("Season poster (same for every episode)", "poster")
+        self.tv_picture.addItem("Each episode's own still", "still")
+        self.tv_picture.currentIndexChanged.connect(
+            lambda _: self._sync_tv_art())
+        self.tv_picture.setToolTip(
+            "Stills are TMDB's 16:9 frame from each episode. An episode "
+            "without one gets the season poster.")
+        pic_row = QHBoxLayout()
+        pic_row.addWidget(QLabel("Picture:"))
+        pic_row.addWidget(self.tv_picture, 1)
+        self.tv_rename = QCheckBox("Rename the files to")
+        self.tv_name_style = QComboBox()
+        for label, mask in TV_NAMES:
+            self.tv_name_style.addItem(label, mask)
+        self.tv_jpg = QCheckBox("Save the picture beside each file (.jpg) — "
+                                "Plex and Jellyfin use it as the thumbnail")
+        self.tv_after = self._after_box(self.tv_rename, self.tv_jpg,
+                                        self.tv_name_style)
+
         left = QVBoxLayout()
         left.addWidget(self.pairs, 1)
         left.addWidget(hint)
         left.addWidget(fields)
+        left.addLayout(pic_row)
+        left.addWidget(self.tv_after)
         body = QHBoxLayout()
         body.addLayout(left, 3)
         body.addWidget(art, 1)
@@ -343,6 +432,39 @@ class VideoLookupDialog(QDialog):
         lay.addLayout(body, 1)
         lay.addLayout(buttons)
         return page
+
+    def _after_box(self, rename: QCheckBox, jpg: QCheckBox,
+                   style: QComboBox | None = None) -> QGroupBox:
+        """'After writing' options: rename, and a picture beside the file.
+
+        Hidden when the dialog only fills the Tag Editor — renaming the file
+        out from under an open editor would leave it saving to a dead path.
+        """
+        box = QGroupBox("After writing:")
+        grid = QGridLayout(box)
+        grid.addWidget(rename, 0, 0)
+        if style is not None:
+            grid.addWidget(style, 0, 1)
+            style.setEnabled(False)
+            rename.toggled.connect(style.setEnabled)
+        grid.addWidget(jpg, 1, 0, 1, 2)
+        grid.setColumnStretch(2, 1)
+        box.setVisible(not self.fill_only)
+        return box
+
+    def _remember(self, key: str, widget) -> None:
+        """Restore a choice from settings, and save it whenever it changes."""
+        if self.settings is None:
+            return
+        name = f"tmdb_{key}"
+        if isinstance(widget, QCheckBox):
+            widget.setChecked(self.settings.value(name, False, type=bool))
+            widget.toggled.connect(lambda on: self.settings.setValue(name, on))
+        else:
+            i = widget.findData(self.settings.value(name, widget.currentData()))
+            widget.setCurrentIndex(max(0, i))
+            widget.currentIndexChanged.connect(
+                lambda _: self.settings.setValue(name, widget.currentData()))
 
     # --- helpers ---
 
@@ -470,12 +592,29 @@ class VideoLookupDialog(QDialog):
             self._run(self.client.poster,
                       lambda data: self._show_poster(data, label, check), path)
 
+    def _sync_tv_art(self) -> None:
+        """Stills need no poster: keep "Embed" usable when stills are chosen.
+
+        Without this a show with no poster on TMDB left the box disabled and
+        unticked, so the stills were silently never embedded.
+        """
+        still = self.tv_picture.currentData() == "still"
+        usable = bool(self.poster) or still
+        if usable and not self.tv_poster_check.isEnabled():
+            self.tv_poster_check.setEnabled(True)
+            self.tv_poster_check.setChecked(True)
+        elif not usable:
+            self.tv_poster_check.setChecked(False)
+            self.tv_poster_check.setEnabled(False)
+
     def _show_poster(self, data: bytes | None, label: QLabel,
                      check: QCheckBox) -> None:
         self._busy(False, self.status.text())
         pixmap = QPixmap()
         if not data or not pixmap.loadFromData(data):
             label.setText("no poster")
+            if check is self.tv_poster_check:
+                self._sync_tv_art()
             return
         self.poster = data
         label.setPixmap(pixmap.scaled(
@@ -527,13 +666,22 @@ class VideoLookupDialog(QDialog):
         track = self.tracks[self.index]
         self._busy(True, WRITING_NOTE)
         self.writing = True
-        self._run(_write_all, self._movie_written, [(track, values)],
-                  pictures, self.write_options)
+        poster = self._pictures(self.movie_poster_check) or (
+            [Picture(self.poster, "image/jpeg")] if self.poster else None)
+        # Read every widget here, on the GUI thread; the worker gets values.
+        opts = dict(embed=self.movie_poster_check.isChecked(),
+                    save_jpg=self.movie_jpg.isChecked(),
+                    mask=(MOVIE_NAMES[0][1] if self.movie_rename.isChecked()
+                          else None))
+        write_options = self.write_options
+        self._run(lambda: _write_all([(track, values)], poster, write_options,
+                                     **opts), self._movie_written)
 
     def _movie_written(self, result) -> None:
-        wrote, failures = result
+        wrote, failures, renamed = result
         self.writing = False
         self.wrote += wrote
+        self.renamed += renamed
         self._busy(False)
         if failures:
             QMessageBox.warning(self, "TMDB", "\n".join(failures))
@@ -573,6 +721,8 @@ class VideoLookupDialog(QDialog):
         seasons = {s for s, _ in self.numbers if s is not None}
         poster = video.poster_for(seasons.pop() if len(seasons) == 1 else None)
         self._fetch_poster(poster, self.tv_poster_label, self.tv_poster_check)
+        if not poster:
+            self._sync_tv_art()
 
     def _fill_pairs(self) -> None:
         self.pairs.blockSignals(True)
@@ -645,13 +795,29 @@ class VideoLookupDialog(QDialog):
             return
         self._busy(True, WRITING_NOTE)
         self.writing = True
-        self._run(_write_all, self._tv_written, plans, pictures,
-                  self.write_options)
+        poster = [Picture(self.poster, "image/jpeg")] if self.poster else None
+        stills = None
+        if self.tv_picture.currentData() == "still":
+            stills = []
+            for track, _ in plans:
+                row = self.tracks.index(track)
+                ep = self._episode_for(row)
+                stills.append(ep.still_path if ep else "")
+        # Read every widget here, on the GUI thread; the worker gets values.
+        opts = dict(client=self.client, stills=stills,
+                    embed=self.tv_poster_check.isChecked(),
+                    save_jpg=self.tv_jpg.isChecked(),
+                    mask=(self.tv_name_style.currentData()
+                          if self.tv_rename.isChecked() else None))
+        write_options = self.write_options
+        self._run(lambda: _write_all(plans, poster, write_options, **opts),
+                  self._tv_written)
 
     def _tv_written(self, result) -> None:
-        wrote, failures = result
+        wrote, failures, renamed = result
         self.writing = False
         self.wrote += wrote
+        self.renamed += renamed
         self._busy(False)
         if failures:
             QMessageBox.warning(self, "TMDB",

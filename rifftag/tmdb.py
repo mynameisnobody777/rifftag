@@ -50,6 +50,8 @@ class Episode:
     title: str = ""
     overview: str = ""
     air_date: str = ""
+    #: the episode's own still (a 16:9 frame), when TMDB has one
+    still_path: str = ""
 
 
 @dataclass
@@ -137,7 +139,8 @@ def _parse_season(data: dict, video: Video, season: int) -> Video:
                 number=int(e.get("episode_number", 0)),
                 title=e.get("name") or "",
                 overview=e.get("overview") or "",
-                air_date=e.get("air_date") or "")
+                air_date=e.get("air_date") or "",
+                still_path=e.get("still_path") or "")
         for e in data.get("episodes") or [] if e.get("episode_number")]
     if data.get("poster_path"):
         video.season_posters[season] = data["poster_path"]

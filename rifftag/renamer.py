@@ -158,12 +158,32 @@ def _same_file_different_case(src: Path, dst: Path) -> bool:
         return False
 
 
+#: Sidecars a film or episode carries: subtitles, its thumbnail, a Kodi .nfo.
+#: These also match with a language/flag part between the name and the
+#: extension — "Heat (1995).eng.srt", "….en.forced.srt" — which is how
+#: subtitles are named (2026-11-28; renaming a film used to strand them).
+VIDEO_SIDECAR_SUFFIXES = (".srt", ".ass", ".ssa", ".sub", ".idx", ".jpg",
+                          ".png", ".nfo")
+
+
 def _find_companions(src: Path, dst: Path) -> list[tuple[Path, Path]]:
     out = []
     for suffix in COMPANION_SUFFIXES:
         mate = src.with_suffix(suffix)
         if mate.exists() and mate != src:
             out.append((mate, dst.with_suffix(suffix)))
+    stem = src.stem
+    try:
+        neighbours = list(src.parent.iterdir())
+    except OSError:
+        neighbours = []
+    for mate in sorted(neighbours):
+        name = mate.name
+        if (mate == src or mate.suffix.lower() not in VIDEO_SIDECAR_SUFFIXES
+                or not name.startswith(stem + ".")
+                or any(m == mate for m, _ in out)):
+            continue
+        out.append((mate, dst.with_name(dst.stem + name[len(stem):])))
     return out
 
 

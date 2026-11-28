@@ -11,6 +11,7 @@ saved masks carry over:
     %aa Album Artist  %co Conductor  %# Disc #  %rt Release Time  %md Mood
     %lb Label  %rb Remixed by  %key Initial Key  %swt Show Title  %eid Episode
     ID  %snr Season number  %enr Episode number  %rnd Random number
+    %sxe 1x01 (season x episode)  %see S01E01
     %d (parse only) skip this part of the name
 
 ``\\`` in a mask is a folder boundary — ``%1 - %3\\%6 %2`` both renames the file
@@ -128,6 +129,11 @@ class RenderOptions:
     windows_safe: bool = True
     #: drop a leading zero from the disc number, as Tag&Rename's Advanced option
     strip_disc_leading_zero: bool = False
+    #: "Star Trek: Picard" -> "Star Trek - Picard" instead of "Star Trek_
+    #: Picard". Off by default (Tag&Rename's rule is the underscore, and
+    #: existing music renames must not change); the TMDB renames turn it on,
+    #: matching how Plex-style names are usually written.
+    colon_dash: bool = False
 
 
 def render(mask: str, values: dict[str, object], *,
@@ -170,6 +176,8 @@ def render(mask: str, values: dict[str, object], *,
     components = [c for c in path.split(SEP)]
     if opts.case:
         components = [opts.case.apply(c) for c in components]
+    if opts.colon_dash:
+        components = [re.sub(r"\s*:\s*", " - ", c) for c in components]
     if opts.underscores:
         components = [c.replace(" ", "_") for c in components]
     components = [sanitize_component(c, windows_safe=opts.windows_safe)

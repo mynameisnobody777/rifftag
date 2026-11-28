@@ -74,7 +74,8 @@ def _variable_help(include_derived: bool) -> QLabel:
     rows = [(f.var, f.label) for f in FIELDS if f.var]
     if include_derived:
         rows += [("%7", "File name"), ("%8", "File number"), ("%0", "Bitrate"),
-                 ("%t", "Play time"), ("%rnd", "Random number")]
+                 ("%t", "Play time"), ("%rnd", "Random number"),
+                 ("%sxe", "1x01"), ("%see", "S01E01")]
     else:
         rows += [("%d", "Skip part of the name")]
     rows.sort(key=lambda r: (len(r[0]), r[0]))

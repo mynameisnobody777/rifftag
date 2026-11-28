@@ -303,3 +303,106 @@ def test_fill_only_hands_values_back_without_writing(qapp, sample, tmp_path):
     assert dlg.filled_values == {"title": "Heat", "year": "1995",
                                  "comment": "A crew..."}
     assert dlg.wrote == 0 and "comment" not in tagio.read(p).values
+
+
+# --- stills, Plex naming, sidecar pictures (2026-11-28) ----------------------
+
+def test_season_parse_keeps_episode_stills():
+    show = Video("tv", 1, "Show")
+    tmdb._parse_season({"episodes": [
+        {"season_number": 1, "episode_number": 1, "name": "A",
+         "still_path": "/still1.jpg"},
+        {"season_number": 1, "episode_number": 2, "name": "B"}]}, show, 1)
+    assert show.episode(1, 1).still_path == "/still1.jpg"
+    assert show.episode(1, 2).still_path == ""
+
+
+class StillClient(FakeClient):
+    """Hands back a distinct 'image' per TMDB path."""
+
+    def poster(self, path):
+        return b"\xff\xd8\xff" + path.encode()
+
+
+@pytest.mark.skipif(not __import__("rifftag.matroska").matroska.available(),
+                    reason="MKVToolNix is not installed")
+def test_tv_stills_jpg_beside_and_plex_rename(qapp, sample, tmp_path):
+    from rifftag.gui.videolookup import VideoLookupDialog
+    e1 = sample("mkv", "e1").rename(tmp_path / "a.man.s01e01.720p.mkv")
+    (tmp_path / "a.man.s01e01.720p.eng.srt").write_text("1\n")
+    dlg = VideoLookupDialog([tagio.read(e1)], client=StillClient())
+    show = Video("tv", 5, "A Man on the Inside: Again", "2024")
+    tmdb._parse_season({"episodes": [
+        {"season_number": 1, "episode_number": 1,
+         "name": "Tinker Tailor Older Spy", "still_path": "/s1e1.jpg"}]},
+        show, 1)
+    dlg.numbers = [[1, 1]]
+    dlg._show_tv(show)
+    dlg.poster = b"\xff\xd8\xffPOSTER"
+    dlg.tv_poster_check.setEnabled(True)
+    dlg.tv_poster_check.setChecked(True)
+    dlg.tv_picture.setCurrentIndex(dlg.tv_picture.findData("still"))
+    dlg.tv_jpg.setChecked(True)
+    dlg.tv_rename.setChecked(True)                 # default style: 1x01
+    dlg._write_tv()
+    _wait(qapp, lambda: not dlg.writing)
+    assert dlg.renamed == 1
+    stem = "A Man on the Inside - Again - 1x01 - Tinker Tailor Older Spy"
+    new = tmp_path / f"{stem}.mkv"
+    assert new.exists() and not e1.exists()
+    # The subtitle and the new picture travelled with it.
+    assert (tmp_path / f"{stem}.eng.srt").exists()
+    assert (tmp_path / f"{stem}.jpg").read_bytes() == b"\xff\xd8\xff/s1e1.jpg"
+    # The still, not the poster, went into the file.
+    assert tagio.read(new).pictures[0].data == b"\xff\xd8\xff/s1e1.jpg"
+
+
+def test_movie_rename_to_title_year(qapp, sample, tmp_path):
+    from rifftag.gui.videolookup import VideoLookupDialog
+    p = sample("m4a", "x").rename(tmp_path / "heat.1995.1080p.mp4")
+    dlg = VideoLookupDialog([tagio.read(p)], client=FakeClient())
+    dlg.movie_rename.setChecked(True)
+    dlg._show_movie(Video("movie", 949, "Heat", "1995"))
+    dlg._write_movie()
+    _wait(qapp, lambda: not dlg.writing)
+    assert (tmp_path / "Heat (1995).mp4").exists() and dlg.renamed == 1
+
+
+def test_after_writing_options_hidden_when_filling_the_editor(qapp, sample,
+                                                              tmp_path):
+    from rifftag.gui.videolookup import VideoLookupDialog
+    p = sample("m4a", "x").rename(tmp_path / "Heat (1995).mp4")
+    dlg = VideoLookupDialog([tagio.read(p)], client=FakeClient(), fill_only=True)
+    assert not dlg.movie_after.isVisibleTo(dlg)
+    assert not dlg.tv_after.isVisibleTo(dlg)
+
+
+def test_after_writing_choices_are_remembered(qapp, sample, tmp_path):
+    from PyQt6.QtCore import QSettings
+    from rifftag.gui.videolookup import VideoLookupDialog
+    settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    p = sample("m4a", "x").rename(tmp_path / "Heat (1995).mp4")
+    dlg = VideoLookupDialog([tagio.read(p)], client=FakeClient(),
+                            settings=settings)
+    dlg.tv_rename.setChecked(True)
+    dlg.tv_name_style.setCurrentIndex(1)
+    again = VideoLookupDialog([tagio.read(p)], client=FakeClient(),
+                              settings=settings)
+    assert again.tv_rename.isChecked()
+    assert again.tv_name_style.currentData() == "%swt - %see - %2"
+
+
+def test_stills_can_be_embedded_when_the_show_has_no_poster(qapp, sample,
+                                                           tmp_path):
+    from rifftag.gui.videolookup import VideoLookupDialog
+    p = sample("m4a", "x").rename(tmp_path / "Show - S01E01.mp4")
+    dlg = VideoLookupDialog([tagio.read(p)], client=FakeClient())
+    show = Video("tv", 9, "Show")                  # no poster_path at all
+    tmdb._parse_season({"episodes": [{"season_number": 1, "episode_number": 1,
+                                      "name": "A", "still_path": "/a.jpg"}]},
+                       show, 1)
+    dlg.numbers = [[1, 1]]
+    dlg._show_tv(show)
+    assert not dlg.tv_poster_check.isEnabled()
+    dlg.tv_picture.setCurrentIndex(dlg.tv_picture.findData("still"))
+    assert dlg.tv_poster_check.isEnabled() and dlg.tv_poster_check.isChecked()

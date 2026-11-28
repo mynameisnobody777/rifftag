@@ -280,3 +280,10 @@ def test_rename_values_includes_derived_variables(sample):
     assert v["file_number"] == 7
     assert v["bitrate"] > 0
     assert v["play_time"] == "0:01"
+
+
+def test_rename_values_carry_episode_forms(sample):
+    p = sample("mp3")
+    tagio.write(p, {"season_number": "1", "episode_number": "3"})
+    v = tagio.read(p).rename_values()
+    assert (v["sxe"], v["s00e00"]) == ("1x03", "S01E03")
