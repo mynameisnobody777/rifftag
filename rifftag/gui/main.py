@@ -1338,6 +1338,10 @@ class MainWindow(QMainWindow):
         if scan != self._scan_id:
             return
         self.model.add_tracks(tracks)
+        # Expand now, not only in _scan_done: on a slow disk (a 150 GB film
+        # folder took ~12 s) the list otherwise sits as one collapsed folder
+        # row and looks empty until the scan ends.
+        self.files.expandAll()
 
     def _scan_progress(self, scan: int, done: int, total: int) -> None:
         if scan != self._scan_id:

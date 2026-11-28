@@ -505,5 +505,10 @@ for, through the ordinary MIME association rather than a file-manager plugin,
 and it works the same way on Windows (see
 [../docs/WINDOWS_PORT.md](WINDOWS_PORT.md) for the one-off registration).
 
+**Matroska (mkv, mka, webm)** — added 2026-11-27. File-level tags and cover
+art, through MKVToolNix (see DEVELOPMENT.md, "Matroska"). `.mka`, `.mkv` and `.webm` are claimed in
+"Open with" (Open-with only; the default video player is untouched). `.mp4` is not.
+Per-track and per-chapter tags are not edited, and are preserved untouched.
+
 **Deliberately not planned:** Amazon import (Tag&Rename removed most of it in
 3.9.15 anyway) and the Windows shell extension.

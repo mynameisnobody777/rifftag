@@ -45,16 +45,27 @@ ENCODES = {
     "wv":   ["-c:a", "wavpack"],
     "wav":  ["-c:a", "pcm_s16le"],
     "aiff": ["-c:a", "pcm_s16be"],
+    # Matroska: audio-only, a real video file, and WebM. The two video ones
+    # get a tiny picture stream from VIDEO_INPUT so they are genuine films.
+    "mka":  ["-c:a", "libvorbis"],
+    "mkv":  ["-c:v", "mpeg4", "-c:a", "libvorbis"],
+    "webm": ["-c:v", "libvpx", "-b:v", "50k", "-c:a", "libopus"],
 }
+
+#: extra ffmpeg inputs for the containers that carry video
+VIDEO_INPUT = ["-f", "lavfi", "-i", "color=c=blue:s=64x48:r=10"]
+VIDEO = {"mkv", "webm"}
 
 FAMILY = {"mp3": "id3", "wav": "id3", "aiff": "id3",
           "flac": "vorbis", "ogg": "vorbis", "opus": "vorbis",
-          "m4a": "mp4", "wma": "asf", "wv": "ape"}
+          "m4a": "mp4", "wma": "asf", "wv": "ape",
+          "mka": "matroska", "mkv": "matroska", "webm": "matroska"}
 
 
 def _encode(dest: Path, ext: str) -> None:
     cmd = ["ffmpeg", "-y", "-loglevel", "error",
-           "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", "1",
+           "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+           *(VIDEO_INPUT if ext in VIDEO else []), "-t", "1",
            *ENCODES[ext], str(dest)]
     subprocess.run(cmd, check=True, capture_output=True)
 

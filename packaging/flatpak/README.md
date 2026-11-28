@@ -51,3 +51,11 @@ source wants to live in a public git repo — Flathub accepts an archive URL
 with a hash (what the manifest uses today), but a tagged GitHub release is
 what reviewers expect and it settles the GPL source-availability obligation
 at the same time.
+
+## Matroska is not in the Flatpak (yet)
+
+MKVToolNix is not in the freedesktop runtime and was not built into the
+manifest (it needs boost, libebml, libmatroska, …). Inside the sandbox
+`.mkv/.mka/.webm` files list with "MKVToolNix is needed" as their error.
+The fix, if wanted, is an `mkvtoolnix` module built with only the CLI tools
+(`--disable-gui`).

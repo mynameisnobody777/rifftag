@@ -23,7 +23,7 @@ from ..webimport import __version__ as _web_version
 from .splash import logo_path
 from .theme import is_dark
 
-VERSION = "0.3"
+VERSION = "0.4"
 TAGLINE = "Edit. Rename. Organize."
 
 #: Where "support RiffTag" points. One link, in this dialog, and nowhere
@@ -38,6 +38,7 @@ FAMILY_NAMES = {
     "vorbis": "Vorbis comments",
     "ape": "APEv2",
     "asf": "Windows Media",
+    "matroska": "Matroska (needs MKVToolNix)",
 }
 
 

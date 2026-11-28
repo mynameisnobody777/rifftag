@@ -7,5 +7,5 @@ Exec=rifftag %F
 Icon=com.nobody777.RiffTag
 Terminal=false
 Categories=AudioVideo;Audio;Music;
-MimeType=audio/x-aiff;audio/aiff;audio/x-aifc;audio/x-ape;audio/x-monkeys-audio;application/vnd.ms-asf;audio/x-ms-asf;audio/x-dsd;audio/x-dsf;audio/flac;audio/x-flac;audio/mp4;audio/x-m4a;audio/m4a;audio/x-m4b;audio/x-musepack;audio/mpeg;audio/mp3;audio/x-mp3;audio/mpeg3;audio/x-mpc;audio/x-optimfrog;audio/ogg;audio/x-vorbis+ogg;audio/vorbis;audio/opus;audio/x-opus+ogg;audio/x-speex+ogg;audio/speex;audio/x-tta;audio/vnd.wave;audio/x-wav;audio/wav;audio/wave;audio/x-ms-wma;audio/x-wavpack;
+MimeType=audio/x-aiff;audio/aiff;audio/x-aifc;audio/x-ape;audio/x-monkeys-audio;application/vnd.ms-asf;audio/x-ms-asf;audio/x-dsd;audio/x-dsf;audio/flac;audio/x-flac;audio/mp4;audio/x-m4a;audio/m4a;audio/x-m4b;audio/x-matroska;audio/matroska;video/x-matroska;video/matroska;audio/x-musepack;audio/mpeg;audio/mp3;audio/x-mp3;audio/mpeg3;audio/x-mpc;audio/x-optimfrog;audio/ogg;audio/x-vorbis+ogg;audio/vorbis;audio/opus;audio/x-opus+ogg;audio/x-speex+ogg;audio/speex;audio/x-tta;audio/vnd.wave;audio/x-wav;audio/wav;audio/wave;video/webm;audio/webm;audio/x-ms-wma;audio/x-wavpack;
 Keywords=tag;id3;mp3;flac;rename;music;metadata;

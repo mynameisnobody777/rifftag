@@ -92,6 +92,55 @@ a real ffmpeg encode, not a synthetic file.
 | vorbis | ogg oga opus spx flac | Vorbis comments |
 | ape | mpc ape ofr wv tta | APEv2 |
 | asf | wma asf wmv | Windows Media |
+| matroska | mkv mka webm | Matroska tags (via MKVToolNix, not mutagen) |
+
+### Matroska (added 2026-11-27)
+
+mutagen has **no** Matroska support, so `rifftag/matroska.py` shells out to
+MKVToolNix: `mkvmerge -J` (info, attachments), `mkvextract tags` (XML),
+`mkvextract attachments` (cover bytes) and `mkvpropedit` (all writes, in place,
+no remux — the streams are hashed before/after in a test). `tagio` dispatches
+the `matroska` family there; it is the one wire-format module besides tagio.
+
+Scope is deliberate: **file-level ("global") tags and cover art only.** Tags
+whose `<Targets>` name a track/chapter/edition/attachment UID are left alone
+(`mkvpropedit --tags global:` only replaces global ones). Per-track and
+per-chapter editing was left out because it needs a UI the rest of the app
+has no shape for.
+
+Gotchas, each pinned by a test in `tests/test_matroska.py`:
+
+* **`LC_ALL=C` truncates non-ASCII.** mkvextract cut `Jóga` to `J` and the
+  XML would not parse. The subprocess env uses `C.UTF-8`, and tags are
+  extracted to a temp *file* rather than stdout (stdout is at the mercy of the
+  console code page on Windows).
+* **ffmpeg writes the title into the segment info, not a TITLE tag**, and
+  writes `PART_NUMBER=3/12`. Title is read TITLE-then-segment and written to
+  both; a combined `n/total` stays combined on write.
+* **Two file-level layouts exist.** Flat (ffmpeg, HandBrake: one `<Targets/>`
+  tag) and the spec's nested music layout (level-50 album tag where `TITLE` =
+  album and `ARTIST` = album artist, level-30 song tag). Nested is detected by
+  any global tag below level 50, and writes go back to the level they came
+  from. mkvextract omits `TargetTypeValue` when it is the default 50.
+* **Cover art is an attachment.** Every `image/*` attachment is a picture;
+  fonts (subtitled films) are never touched. Front cover is written as
+  `cover.jpg`/`cover.png` per the spec's convention, back as `back.*`.
+* **mkvmerge reports WebM as "Matroska"**, so the tag-version label goes by
+  extension.
+* **ffmpeg sees attached cover art as a video stream** — use `-map 0:V`
+  (capital V) when you mean "real video only".
+* Exit codes: 0 ok, 1 warnings (work done), 2 error.
+
+Disc number has no spec name; `DISC` (`n/total`) is what ffmpeg produces from
+an ID3 `TPOS`, so that is what is written. Sort fields and podcast fields have
+no Matroska mapping and are ignored, as ASF ignores what it cannot hold.
+
+Tools are found on PATH, then a `mkvtoolnix/` folder beside the executable
+(for a bundled Windows build), then `%ProgramFiles%\MKVToolNix` (the
+standard installer, which does not touch PATH). Missing tools give the track
+an `error`, never a crash. Reading costs two subprocesses per file (~65 ms) —
+fine for albums, noticeable for thousands of films; a pure-Python EBML reader
+would be the fix if it ever matters.
 
 ---
 

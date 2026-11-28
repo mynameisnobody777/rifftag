@@ -4,17 +4,24 @@ This is the only module that knows what an ID3 frame id, an MP4 atom or a
 Vorbis comment key looks like. Everything above it speaks :mod:`rifftag.fields`
 keys and nothing else.
 
-Five families cover the whole format list from the original's overview page:
+Five families cover the whole format list from the original's overview page,
+and a sixth was added for Matroska:
 
-======  =========================================  ====================
-family  extensions                                 tag standard
-======  =========================================  ====================
-id3     mp3 aiff aif wav dsf dsd                   ID3v2.3 / ID3v2.4
-mp4     m4a m4b m4r m4p m4v mp4                    iTunes atoms
-vorbis  ogg oga opus spx flac                      Vorbis comments
-ape     mpc mp+ ape ofr ofs wv tta               APEv2
-asf     wma asf wmv                                Windows Media
-======  =========================================  ====================
+========  =======================================  ====================
+family    extensions                               tag standard
+========  =======================================  ====================
+id3       mp3 aiff aif wav dsf dsd                 ID3v2.3 / ID3v2.4
+mp4       m4a m4b m4r m4p m4v mp4                  iTunes atoms
+vorbis    ogg oga opus spx flac                    Vorbis comments
+ape       mpc mp+ ape ofr ofs wv tta               APEv2
+asf       wma asf wmv                              Windows Media
+matroska  mkv mka webm                             Matroska tags
+========  =======================================  ====================
+
+mutagen has no Matroska support, so the ``matroska`` family is handed to
+:mod:`rifftag.matroska`, which drives the MKVToolNix command-line tools. That
+module is the one exception to "only tagio knows the wire format"; it is
+called from here and nowhere else.
 
 Interop notes that cost real debugging time, so they are settings rather than
 assumptions — all three are options Tag&Rename itself exposes:
@@ -43,6 +50,7 @@ from mutagen.asf import ASF, ASFByteArrayAttribute
 from mutagen.flac import FLAC, Picture as FLACPicture
 from mutagen.mp4 import MP4, MP4Cover, MP4FreeForm, AtomDataType
 
+from . import matroska as _mkv
 from .fields import BY_KEY, FIELDS, Kind
 
 
@@ -75,6 +83,7 @@ EXT_FAMILY: dict[str, str] = {
     **{e: "vorbis" for e in (".ogg", ".oga", ".opus", ".spx", ".flac")},
     **{e: "ape" for e in (".mpc", ".mp+", ".ape", ".ofr", ".ofs", ".wv", ".tta")},
     **{e: "asf" for e in (".wma", ".asf", ".wmv")},
+    **{e: "matroska" for e in (".mkv", ".mka", ".webm")},
 }
 
 AUDIO_EXTENSIONS = tuple(sorted(EXT_FAMILY))
@@ -692,6 +701,9 @@ def read(path: os.PathLike[str] | str, *,
     p = Path(path)
     fam = family_for(p) or ""
     track = Track(path=p, family=fam)
+    if fam == "matroska":
+        _read_matroska(track)
+        return track
     try:
         mf = mutagen.File(p)
     except Exception as exc:
@@ -724,6 +736,28 @@ def read(path: os.PathLike[str] | str, *,
     except Exception as exc:
         track.error = f"{type(exc).__name__}: {exc}"
     return track
+
+
+def _read_matroska(track: Track) -> None:
+    try:
+        info = _mkv.identify(track.path)
+        ai = _mkv.audio_info(track.path, info)
+        track.info = AudioInfo(length=ai["length"], bitrate=ai["bitrate"],
+                               sample_rate=ai["sample_rate"],
+                               channels=ai["channels"],
+                               bit_depth=ai["bit_depth"], codec=ai["codec"])
+        track.values.update(_mkv.values_from_tags(_mkv.read_tags(track.path)))
+        if "title" not in track.values and ai["segment_title"].strip():
+            track.values["title"] = ai["segment_title"].strip()
+        track.pictures.extend(Picture(d, m, k, desc) for d, m, k, desc
+                              in _mkv.read_pictures(track.path, info))
+        # mkvmerge calls WebM "Matroska" too, so go by the extension.
+        track.tag_version = ("WebM" if track.path.suffix.lower() == ".webm"
+                             else "Matroska")
+    except _mkv.MatroskaError as exc:
+        track.error = str(exc)
+    except Exception as exc:
+        track.error = f"{type(exc).__name__}: {exc}"
 
 
 def _read_vorbis_pictures(mf: Any) -> list[Picture]:
@@ -826,6 +860,14 @@ def write(path: os.PathLike[str] | str, values: dict[str, Any], *,
     if fam is None:
         raise TagError(f"unsupported file type: {p.suffix}")
 
+    if fam == "matroska":
+        try:
+            _mkv.write(p, values, None if pictures is None else
+                       [(x.data, x.mime, x.kind, x.desc) for x in pictures])
+        except _mkv.MatroskaError as exc:
+            raise TagError(f"{p.name}: {exc}") from exc
+        return
+
     try:
         mf = mutagen.File(p)
         if mf is None:
@@ -893,6 +935,12 @@ def _save_id3(mf: Any, opts: WriteOptions) -> None:
 def remove_tags(path: os.PathLike[str] | str) -> None:
     """Strip every tag from a file. Not undoable, like the original's button."""
     p = Path(path)
+    if family_for(p) == "matroska":
+        try:
+            _mkv.remove_all(p)
+        except _mkv.MatroskaError as exc:
+            raise TagError(f"{p.name}: {exc}") from exc
+        return
     try:
         mf = mutagen.File(p)
         if mf is None:

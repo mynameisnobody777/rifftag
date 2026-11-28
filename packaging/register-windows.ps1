@@ -37,8 +37,8 @@ $classes = "HKCU:\Software\Classes"
 # absent from the "Open with" menu for a .wav.
 $extensions = @(
     ".aif", ".aifc", ".aiff", ".ape", ".asf", ".dsd", ".dsf", ".flac",
-    ".m4a", ".m4b", ".m4p", ".m4r", ".mp+", ".mp3", ".mpc", ".ofr",
-    ".ofs", ".oga", ".ogg", ".opus", ".spx", ".tta", ".wav", ".wma",
+    ".m4a", ".m4b", ".m4p", ".m4r", ".mka", ".mkv", ".mp+", ".mp3", ".mpc", ".ofr",
+    ".ofs", ".oga", ".ogg", ".opus", ".spx", ".tta", ".wav", ".webm", ".wma",
     ".wv"
 )
 

@@ -121,6 +121,29 @@ def test_window_builds_and_lists_an_album(qapp, library):
     w.close()
 
 
+@pytest.mark.skipif(not __import__("rifftag.matroska").matroska.available(),
+                    reason="MKVToolNix is not installed")
+def test_mkv_files_are_listed_and_editable_in_the_grid(qapp, sample, tmp_path):
+    folder = tmp_path / "Films"
+    folder.mkdir()
+    film = sample("mkv", "film")
+    film = film.rename(folder / "film.mkv")
+    tagio.write(film, {"title": "Before", "artist": "Someone"})
+
+    w = MainWindow()
+    w.folder = folder
+    _scan(w, folder)
+    assert [t.path.name for t in w.model.all_tracks()] == ["film.mkv"]
+
+    parent = w.model.index(0, 0)
+    title_col = [c.key for c in w.model.columns].index("title")
+    index = w.model.index(0, title_col, parent)
+    assert w.model.data(index) == "Before"
+    assert w.model.setData(index, "After", Qt.ItemDataRole.EditRole)
+    assert tagio.read(film).values["title"] == "After"
+    w.close()
+
+
 def test_grid_cell_edit_writes_the_tag(qapp, library):
     folder, files = library
     model = FileListModel()
@@ -4585,4 +4608,18 @@ def test_cleaning_an_empty_box_says_so_rather_than_doing_nothing(qapp,
     dialog._clean_lyrics()
     assert "empty" in dialog.lyrics_note.text()
     dialog.close()
+    w.close()
+
+
+def test_folder_row_is_expanded_while_the_scan_is_still_running(qapp, library):
+    """Rows must be visible from the first batch, not only after the scan.
+
+    A slow 62-file film folder sat as one collapsed row for ~12 s and looked
+    empty (2026-11-27).
+    """
+    folder, files = library
+    w = MainWindow()
+    w._scan_id = 7
+    w._scan_found(7, [tagio.read(p) for p in files[:1]])
+    assert w.files.isExpanded(w.model.index(0, 0))
     w.close()

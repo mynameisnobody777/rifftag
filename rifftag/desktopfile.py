@@ -58,6 +58,12 @@ MIME_BY_EXTENSION: dict[str, tuple[str, ...]] = {
     ".mpc":  ("audio/x-musepack", "audio/x-mpc"),
     ".mp+":  ("audio/x-musepack",),
     ".tta":  ("audio/x-tta",),
+    ".mka":  ("audio/x-matroska", "audio/matroska"),
+    # .mkv/.webm are video containers, but Dave keeps music videos and rips in
+    # them and asked for RiffTag in their right-click menu (2026-11-27). Only
+    # "Open with" is added: the default video player is not displaced.
+    ".mkv":  ("video/x-matroska", "video/matroska"),
+    ".webm": ("video/webm", "audio/webm"),
     ".ofr":  ("audio/x-optimfrog",),
     ".ofs":  ("audio/x-optimfrog",),
     # Video containers RiffTag can tag but deliberately does NOT claim: see
@@ -67,6 +73,7 @@ MIME_BY_EXTENSION: dict[str, tuple[str, ...]] = {
 #: Tagged happily, but never claimed in a desktop entry. Putting a tag editor
 #: in the "Open with" menu of every .mp4 and .wmv on the machine is noise for
 #: a case nobody asked for; passing one on the command line still works.
+#: (Matroska is the exception, claimed above at Dave's request.)
 VIDEO_EXTENSIONS = (".mp4", ".m4v", ".mpg", ".wmv")
 
 

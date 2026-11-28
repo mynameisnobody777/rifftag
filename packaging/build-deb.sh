@@ -84,7 +84,7 @@ Section: sound
 Priority: optional
 Architecture: all
 Depends: python3 (>= 3.10), python3-pyqt6 (>= 6.2), python3-mutagen (>= 1.45)
-Recommends: python3-pyqt6.qtmultimedia, ffmpeg
+Recommends: python3-pyqt6.qtmultimedia, ffmpeg, mkvtoolnix
 Installed-Size: $INSTALLED_KB
 Maintainer: Dave Yeubanks <davidyeubanks@gmail.com>
 Homepage: https://example.invalid/rifftag
@@ -101,12 +101,13 @@ Description: Music tag editor and organiser
  release check that reports what a distributor would send back.
  .
  Playback needs python3-pyqt6.qtmultimedia; converting and the loudness
- measurement need ffmpeg. Both are recommended, not required: without them
- the rest of the program works and those features explain what is missing.
+ measurement need ffmpeg; Matroska (mkv, mka, webm) needs mkvtoolnix. All
+ are recommended, not required: without them the rest of the program works
+ and those features explain what is missing.
  .
- Supports mp3, flac, ogg, opus, m4a/mp4, wma, wav, aiff, dsf, ape, wv, mpc
- and more, covering ID3v2, iTunes, Vorbis comments, APEv2 and Windows Media
- tags.
+ Supports mp3, flac, ogg, opus, m4a/mp4, wma, wav, aiff, dsf, ape, wv, mpc,
+ mkv/mka/webm and more, covering ID3v2, iTunes, Vorbis comments, APEv2,
+ Windows Media and Matroska tags.
 CONTROL
 
 cat > "$STAGE/DEBIAN/postinst" <<'POSTINST'

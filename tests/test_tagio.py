@@ -2,12 +2,18 @@
 
 import pytest
 
-from rifftag import tagio
+from rifftag import matroska, tagio
 from rifftag.tagio import Picture, WriteOptions
 
-ALL = ["mp3", "flac", "ogg", "opus", "m4a", "wma", "wv", "wav", "aiff"]
+#: Matroska goes through MKVToolNix rather than mutagen; without it installed
+#: those cases skip instead of failing.
+_NEEDS_MKV = pytest.mark.skipif(not matroska.available(),
+                                reason="MKVToolNix is not installed")
+MKV = [pytest.param(e, marks=_NEEDS_MKV) for e in ("mka", "mkv", "webm")]
+
+ALL = ["mp3", "flac", "ogg", "opus", "m4a", "wma", "wv", "wav", "aiff", *MKV]
 #: formats whose tag standard carries the long tail of extra frames
-RICH = ["mp3", "flac", "ogg", "m4a", "wv"]
+RICH = ["mp3", "flac", "ogg", "m4a", "wv", *MKV]
 
 CORE = {
     "artist": "Nirvana",
@@ -85,7 +91,7 @@ def test_empty_string_clears_a_field(sample, ext):
     assert v.get("artist") == "Nirvana"
 
 
-@pytest.mark.parametrize("ext", ["mp3", "flac", "ogg", "m4a", "wma", "wv"])
+@pytest.mark.parametrize("ext", ["mp3", "flac", "ogg", "m4a", "wma", "wv", *MKV])
 def test_cover_art_round_trips(sample, ext, jpeg_bytes):
     p = sample(ext)
     tagio.write(p, {"title": "x"}, pictures=[Picture(jpeg_bytes, "image/jpeg")])
@@ -95,7 +101,7 @@ def test_cover_art_round_trips(sample, ext, jpeg_bytes):
     assert got.pictures[0].dimensions() == (8, 8)
 
 
-@pytest.mark.parametrize("ext", ["mp3", "flac", "ogg", "m4a"])
+@pytest.mark.parametrize("ext", ["mp3", "flac", "ogg", "m4a", *MKV])
 def test_pictures_none_leaves_art_alone_and_empty_list_removes_it(sample, ext, jpeg_bytes):
     p = sample(ext)
     tagio.write(p, {"title": "x"}, pictures=[Picture(jpeg_bytes)])
@@ -114,7 +120,7 @@ def test_unicode_survives(sample, ext):
     assert v.get("title") == "Jóga — 日本語"
 
 
-@pytest.mark.parametrize("ext", ["mp3", "flac", "ogg", "m4a", "wv"])
+@pytest.mark.parametrize("ext", ["mp3", "flac", "ogg", "m4a", "wv", *MKV])
 def test_compilation_flag(sample, ext):
     p = sample(ext)
     tagio.write(p, {"compilation": True})
@@ -123,7 +129,7 @@ def test_compilation_flag(sample, ext):
     assert not tagio.read(p).values.get("compilation")
 
 
-@pytest.mark.parametrize("ext", ["mp3", "flac", "ogg", "m4a"])
+@pytest.mark.parametrize("ext", ["mp3", "flac", "ogg", "m4a", *MKV])
 def test_lyrics_round_trip(sample, ext):
     p = sample(ext)
     text = "With the lights out\nit's less dangerous"

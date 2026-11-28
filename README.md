@@ -18,8 +18,9 @@ them like a spreadsheet — then tells you what a distributor would send back.
 * A **release check** that reports undersized artwork, inconsistent album
   artists, gaps in track numbering, loudness and true peak, and more
 
-Formats: ID3v2.3/2.4, iTunes MP4, Vorbis comments, APEv2 and Windows Media —
-mp3, flac, wav, aiff, ogg, opus, m4a, wma, dsf, ape, wv, mpc.
+Formats: ID3v2.3/2.4, iTunes MP4, Vorbis comments, APEv2, Windows Media and
+Matroska — mp3, flac, wav, aiff, ogg, opus, m4a, wma, dsf, ape, wv, mpc, and
+mkv, mka, webm (file-level tags and cover art; needs MKVToolNix).
 
 **Website:** <https://rifftag.nobody777.com> · **Support:**
 <https://ko-fi.com/nobody777thankyou>
@@ -59,11 +60,15 @@ withholding the source from the people you sell to is not.
 ```bash
 cd /mnt/claude-brain/apps/rifftag
 PYTHONPATH=. python3 -m rifftag          # or ./rifftag.sh
-PYTHONPATH=. python3 -m pytest tests -q   # 622 tests, ~26s
+PYTHONPATH=. python3 -m pytest tests -q   # 709 tests, ~32s
 ```
 
 Needs `python3-pyqt6` and `python3-mutagen`, plus `python3-pytest` and
-`ffmpeg` to run the tests. Packaging lives in `packaging/`: a `.deb`, a
+`ffmpeg` to run the tests. Matroska files (mkv, mka, webm) need `mkvtoolnix`
+(`sudo apt install mkvtoolnix`; on Windows, the normal MKVToolNix installer —
+RiffTag finds it in `C:\Program Files\MKVToolNix` without PATH changes).
+Without it those files list with an error saying what to install, and the
+Matroska tests skip. Packaging lives in `packaging/`: a `.deb`, a
 Windows build and a Flatpak manifest.
 
 To build a shareable package:
@@ -159,6 +164,6 @@ Bug reports and patches are welcome. The test suite is the contract:
 PYTHONPATH=. python3 -m pytest tests -q
 ```
 
-622 tests, about 26 seconds. Anything that changes behaviour wants a test that
+709 tests, about 32 seconds. Anything that changes behaviour wants a test that
 fails without the change — most of the awkward lessons in
 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) are pinned by one.

@@ -38,14 +38,23 @@ mkdir -p web/downloads
 # Both are version-stamped, so without this the previous release's files stay
 # downloadable for ever and turn up in SHA256SUMS beside the current ones.
 rm -f web/downloads/rifftag-*-source.tar.gz web/downloads/rifftag_*_all.deb
-# web/ is excluded: it is the website, not the program, and it carries the
-# videos. Everything needed to build and run RiffTag is in the rest.
-# .git is excluded too: the GPL obliges us to ship the source, not the
-# history, and GitHub already has the history. Leaving it in had quietly
-# grown this tarball from 7.6 MB to 33 MB.
-tar --exclude='.git' --exclude='build' --exclude='dist' --exclude='web' --exclude='.wrangler' \
-    --exclude='wrangler.jsonc' --exclude='.pytest_cache' --exclude='__pycache__' \
-    -czf "web/downloads/rifftag-${VERSION}-source.tar.gz" -C "$(dirname "$ROOT")" rifftag
+# Built from git (tracked files at HEAD), never by tarring the working folder.
+# Tarring the folder shipped the gitignored Tag&Rename help text and reference
+# screenshots (someone else's copyright) plus stray dev files in the 0.3
+# tarball. .git is not in git archive output; web/ (the website, with its
+# videos) and wrangler.jsonc are dropped by pathspec.
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+    echo "   !! uncommitted changes - commit first, the tarball is built from HEAD" >&2
+    exit 1
+fi
+git archive --format=tar.gz --prefix=rifftag/ \
+    -o "web/downloads/rifftag-${VERSION}-source.tar.gz" HEAD \
+    -- . ':(exclude)web' ':(exclude)wrangler.jsonc'
+if tar tzf "web/downloads/rifftag-${VERSION}-source.tar.gz" \
+        | grep -qE 'refpics|tagrename-help'; then
+    echo "   !! Tag&Rename reference material in the tarball" >&2
+    exit 1
+fi
 cp "dist/rifftag_${VERSION}_all.deb" web/downloads/
 
 # A website video inside the application package is how the .deb went from

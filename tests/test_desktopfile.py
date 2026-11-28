@@ -103,3 +103,10 @@ def test_the_windows_extension_list_matches():
     block = block[:block.index(")")]
     listed = tuple(sorted(re.findall(r'"([^"]+)"', block)))
     assert listed == extensions()
+
+
+def test_matroska_video_is_claimed():
+    """Dave right-clicks .mkv files to tag them (2026-11-27)."""
+    assert ".mkv" in extensions() and ".webm" in extensions()
+    assert "video/x-matroska" in mime_types()
+    assert "video/webm" in mime_types()
