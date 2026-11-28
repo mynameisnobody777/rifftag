@@ -48,6 +48,7 @@ from .splash import app_icon, show_splash, wordmark
 from .statusbar import StatusTotals
 from .theme import (Theme, apply as apply_theme, capture_system_palette,
                     themed_icon, use_portable_style)
+from .subembed import SubtitleEmbedDialog
 from .videolookup import VideoLookupDialog, camera_icon
 from .webimport import WebImportDialog
 from .tabs import FilenameToTagTab, MultiTagTab, RenameTab
@@ -511,6 +512,7 @@ class MainWindow(QMainWindow):
                 ("Get album titles from the Web…", self._web_import),
                 ("Get movie / TV info from TMDB…\tCtrl+Shift+W",
                  self._video_lookup),
+                ("Embed subtitles into MKV…", self._embed_subtitles),
                 ("Auto fill track #…", self._autofill_track),
                 ("Auto fill episode #…", self._autofill_episode),
                 ("Convert audio format…", self._convert),
@@ -1734,6 +1736,17 @@ class MainWindow(QMainWindow):
         if dialog.wrote:
             self.statusBar().showMessage(
                 f"Wrote TMDB info into {dialog.wrote} file(s)")
+            self._refresh_tracks(tracks)
+
+    def _embed_subtitles(self) -> None:
+        tracks = self._require_selection()
+        if not tracks:
+            return
+        dialog = SubtitleEmbedDialog(tracks, self)
+        dialog.exec()
+        if dialog.embedded:
+            self.statusBar().showMessage(
+                f"Subtitles embedded into {dialog.embedded} file(s)")
             self._refresh_tracks(tracks)
 
     def _set_tmdb_key(self) -> None:

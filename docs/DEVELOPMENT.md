@@ -28,6 +28,7 @@ rifftag/
   lrc.py       the LRC format — stamps, metadata, parse and build
   tracknum.py  the track # format menu and auto fill
   webimport.py MusicBrainz and Discogs lookup (stdlib urllib, no deps)
+  subtitles.py embed sidecar .srt/.ass into MKV (mkvmerge remux, verified)
   tmdb.py      TMDB movie/TV lookup and file-name guessing (reuses
                webimport's _get; parsing tested from canned JSON)
   gui/
@@ -48,6 +49,7 @@ rifftag/
     art.py       the cover-art drop target and the picture decoding
     webimport.py the Load Album Titles from Web dialog
     videolookup.py the TMDB movie / TV dialog
+    subembed.py  the Embed subtitles into MKV window
     dialogs.py   the small prompts (Auto Fill Track #)
     theme.py     light / dark / follow-the-desktop palettes
     splash.py    startup splash, app icon, wordmark and emblem pixmaps

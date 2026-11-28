@@ -59,6 +59,20 @@ attribution TMDB's API terms require. The toolbar button is a drawn movie
 camera (beside the globe), drawn so it looks the same on Windows, which has no
 theme icons.
 
+**Embed subtitles into MKV** (Tools menu; added 2026-11-28, the first item
+gleaned from FileBot): sidecars named `Movie (Year).srt` / `.eng.srt` /
+`.en.forced.srt` / `.en.sdh.srt` (also .ass/.ssa) become subtitle tracks with
+language, name and forced / hearing-impaired flags. Unlike every other edit
+this **rewrites the file** (a remux — mkvpropedit cannot add tracks):
+mkvmerge copies everything into a hidden temp file beside the original, it is
+verified (same video/audio tracks, exactly N new subtitle tracks) and then
+swapped in atomically; any failure deletes the temp and leaves the original.
+Free space is checked first. Languages already inside are skipped. Non-UTF-8
+.srt is passed as windows-1252. Sidecars are kept unless "delete" is ticked
+(deleted only after a verified swap). MP4 is left alone on purpose: Plex reads
+.srt beside an MP4, and an ffmpeg remux risks the iTunes tags. Engine:
+`rifftag/subtitles.py`; window: `gui/subembed.py`.
+
 **Lookups from the Tag Editor** (double-click a file; added 2026-11-28):
 **Album lookup…** and **Movie/TV lookup…** open the same two dialogs in
 *fill-only* mode — their button reads **Use in Editor**, nothing is written,
