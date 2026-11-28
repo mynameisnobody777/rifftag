@@ -50,6 +50,7 @@ rifftag/
     webimport.py the Load Album Titles from Web dialog
     videolookup.py the TMDB movie / TV dialog
     subembed.py  the Embed subtitles into MKV window
+    videowindow.py the video picture window the player opens for films
     dialogs.py   the small prompts (Auto Fill Track #)
     theme.py     light / dark / follow-the-desktop palettes
     splash.py    startup splash, app icon, wordmark and emblem pixmaps

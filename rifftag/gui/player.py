@@ -179,6 +179,8 @@ class PlayerPanel(QWidget):
         self._index = -1
         self._player = None
         self._audio = None
+        #: VideoWindow, built with the player; None without Qt Multimedia
+        self.video_window = None
         self._seeking = False
         #: button -> which glyph it is currently showing, so a theme change
         #: can redraw every one of them in the new ink colour
@@ -354,7 +356,70 @@ class PlayerPanel(QWidget):
         self._player.playbackStateChanged.connect(
             lambda *_: self._update_buttons())
         self._player.mediaStatusChanged.connect(self._status_changed)
+        self._attach_video_window()
         return self._player
+
+    def _attach_video_window(self) -> None:
+        """Give the player somewhere to draw pictures (see videowindow.py).
+
+        Without a video output QMediaPlayer silently drops the picture and
+        plays only the sound, which is all this panel did before 0.6.
+        """
+        from . import videowindow
+        if not videowindow.AVAILABLE:
+            return
+        win = videowindow.VideoWindow(self.window(), self.settings)
+        self.video_window = win
+        player = self._player
+        player.setVideoOutput(win.video)
+        player.hasVideoChanged.connect(self._video_changed)
+        player.tracksChanged.connect(self._tracks_changed)
+        # GStreamer (Qt 6.4) can announce tracksChanged before the subtitle
+        # tracks are known, leaving the picker empty; ask again once loaded.
+        player.mediaStatusChanged.connect(
+            lambda status: self._tracks_changed()
+            if status in (QMediaPlayer.MediaStatus.LoadedMedia,
+                          QMediaPlayer.MediaStatus.BufferedMedia) else None)
+        player.positionChanged.connect(win.set_position)
+        player.durationChanged.connect(win.set_duration)
+        win.closed.connect(self.stop)
+        win.toggle_play.connect(self.toggle_play)
+        win.seek_to.connect(player.setPosition)
+        win.seek_by.connect(lambda ms: player.setPosition(
+            max(0, min(player.duration(), player.position() + ms))))
+        win.subtitle_chosen.connect(player.setActiveSubtitleTrack)
+
+    def _video_changed(self, has_video: bool) -> None:
+        win = self.video_window
+        if win is None:
+            return
+        if has_video:
+            track = self.current()
+            win.set_title(track.path.name if track is not None else "Video")
+            win.show_video()
+            self._tracks_changed()
+        elif win.isVisible():
+            win.remember()
+            win.hide()
+
+    def _tracks_changed(self) -> None:
+        """List the file's subtitle tracks in the video window's picker."""
+        win, player = self.video_window, self._player
+        if win is None or player is None:
+            return
+        from PyQt6.QtCore import QLocale
+        from PyQt6.QtMultimedia import QMediaMetaData
+        # Only stringValue/value here: QMediaMetaData.keys() on a subtitle
+        # track segfaults Qt 6.4's GStreamer backend (found 2026-11-28).
+        names = []
+        for meta in player.subtitleTracks():
+            title = meta.stringValue(QMediaMetaData.Key.Title)
+            lang = meta.value(QMediaMetaData.Key.Language)
+            lang_name = (QLocale.languageToString(lang)
+                         if isinstance(lang, QLocale.Language)
+                         and lang != QLocale.Language.AnyLanguage else "")
+            names.append(title or lang_name)
+        win.set_subtitles(names, player.activeSubtitleTrack())
 
     # --- queue ---
 
@@ -424,6 +489,9 @@ class PlayerPanel(QWidget):
     def stop(self) -> None:
         if self._player is not None:
             self._player.stop()
+        if self.video_window is not None and self.video_window.isVisible():
+            self.video_window.remember()
+            self.video_window.hide()
         self.now_playing.setText("Nothing playing")
         self.now_playing.setToolTip("")
         self.position.setRange(0, 0)

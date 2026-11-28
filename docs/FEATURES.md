@@ -73,6 +73,19 @@ Free space is checked first. Languages already inside are skipped. Non-UTF-8
 .srt beside an MP4, and an ffmpeg remux risks the iTunes tags. Engine:
 `rifftag/subtitles.py`; window: `gui/subembed.py`.
 
+**Video in the player** (added 2026-11-28, 0.6): the corner player stays the
+remote; when the current file has video a separate window opens
+(`gui/videowindow.py`, geometry remembered) with its own bar — play/pause,
+seek, a Subtitles picker for embedded tracks, full screen. Keys: Space, F /
+double-click, Esc, ←/→ 10 s, ↑/↓ 1 min. Closing it stops playback. Decoding is
+Qt Multimedia's: GStreamer on Linux (needs gstreamer1.0-libav for H.264/HEVC,
+present on Dave's Mint), FFmpeg in the Windows wheels. Gotchas: on Qt 6.4
+`QMediaPlayer.tracksChanged` can fire before subtitle tracks exist, so the
+list is re-read on LoadedMedia/BufferedMedia; and `QMediaMetaData.keys()` on a
+subtitle track **segfaults** the GStreamer backend — use `stringValue` /
+`value` only. Playback trials made offscreen still play sound through the
+speakers: mute them.
+
 **Lookups from the Tag Editor** (double-click a file; added 2026-11-28):
 **Album lookup…** and **Movie/TV lookup…** open the same two dialogs in
 *fill-only* mode — their button reads **Use in Editor**, nothing is written,
