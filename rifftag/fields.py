@@ -5,7 +5,7 @@ One vocabulary for every container. The rest of the codebase speaks only these
 ID3 frame id or an MP4 atom looks like.
 
 Field set and the rename-variable table come from Tag&Rename 3.9.15's own help
-file (see ``docs/tagrename-help-extracted.txt``) so that masks Dave already has
+file (kept privately at ``apps/_reference/tagrename/``, outside the repo) so that masks Dave already has
 memorised keep working unchanged.
 """
 

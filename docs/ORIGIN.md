@@ -27,7 +27,7 @@ Extract the help again with:
 
 A clean-room spec from published documentation is faster, more complete and
 legally uncomplicated. That extracted spec lives at
-`docs/tagrename-help-extracted.txt` and `docs/refpics/` on the development
+`apps/_reference/tagrename/` on the development
 machine, and is **deliberately excluded from this repository**: it is the
 vendor's own copyrighted text and screenshots. Reading someone's published
 documentation to build a clean-room implementation is fine; redistributing

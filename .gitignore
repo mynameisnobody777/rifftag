@@ -22,5 +22,7 @@ node_modules/
 # That was the right way to build a clean-room clone, and it is fine to keep
 # on a private disk. It is someone else's copyrighted work, so it must never
 # reach a public repository, a release tarball or a Flathub submission.
+# Moved out to apps/_reference/tagrename/ on 2026-11-28; these lines stay as
+# a tripwire in case a copy is ever dropped back in.
 docs/refpics/
 docs/tagrename-help-extracted.txt
