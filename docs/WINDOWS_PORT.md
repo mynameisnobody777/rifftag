@@ -108,14 +108,12 @@ untouched. Three things did not:
   not the working directory. With `--specpath build\windows` it went looking
   for `build\windows\assets`. Every path in the build script is absolute now.
 
-Build and run:
-
-```powershell
-cd B:\apps\rifftag
-powershell -ExecutionPolicy Bypass -File packaging\build-windows.ps1
-robocopy B:\apps\rifftag\dist\windows\RiffTag C:\RiffTagApp /MIR /NFL /NDL /NJH /NJS /NP
-C:\RiffTagApp\RiffTag.exe
-```
+Build and install: double-click `2 - Build RiffTag.bat` in the WinBoat shared
+folder (it runs `packaging\build-windows-all.ps1`). Its last step runs the new
+`RiffTag-<ver>-Setup.exe` silently, upgrading the copy Dave opens from the
+Start Menu. Until 2026-11-28 it robocopied a loose copy to `C:\RiffTagApp`
+instead, so the Start Menu copy silently stayed on 0.3 through two builds; the
+script now deletes that folder.
 
 Run it from a local disk, not the share: 118 MB of DLLs over SMB makes the
 first launch look like a hang.
@@ -222,7 +220,7 @@ Decisions baked into the script, each for a reason:
   `../../CONTEXT_APPS.md`, where a signed installer is named as one of the
   few things genuinely worth charging for.
 
-### File associations, until there is an installer
+### File associations by hand (superseded by the installer; kept for a loose build)
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File packaging\register-windows.ps1 -Exe C:\RiffTagApp\RiffTag.exe

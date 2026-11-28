@@ -13,13 +13,15 @@
 param(
     [string]$Share = "B:\apps\rifftag",
     [string]$Work  = "C:\RiffTag",
-    [string]$AppDir = "C:\RiffTagApp",
+    # Where builds before 2026-11-28 robocopied a loose copy. Now only
+    # removed: see step 7.
+    [string]$OldAppDir = "C:\RiffTagApp",
     # Reuse what is already built instead of rebuilding. The pipeline runs
     # end to end by default, which is right for a release but wasteful when
     # only the last step is in question: it cost a 119 MB rebuild to retry
     # the installer once.
     [switch]$SkipBuild,
-    # Only step 7. Implies -SkipBuild and leaves the zip alone.
+    # Only the installer steps (6-7). Implies -SkipBuild and leaves the zip alone.
     [switch]$InstallerOnly
 )
 if ($InstallerOnly) { $SkipBuild = $true }
@@ -103,17 +105,10 @@ if ($SkipBuild -and (Test-Path $exe)) {
     Good "Built: $exe"
 }
 
-# --- install ---------------------------------------------------------
-Step 5 "Installing to $AppDir"
-if ($InstallerOnly) { Write-Host "  Skipped (-InstallerOnly)." -ForegroundColor Yellow } else {
-robocopy "$Work\dist\windows\RiffTag" $AppDir /MIR /NFL /NDL /NJH /NJS /NP | Out-Null
-if ($LASTEXITCODE -ge 8) { Fail "install robocopy failed ($LASTEXITCODE)" } else { Good "Installed" }
-}
-
 # --- zip -------------------------------------------------------------
 # Zip LOCALLY then copy. Compress-Archive straight to the mapped B: drive is
 # what failed on 2026-11-26: build and install both worked, no zip appeared.
-Step 6 "Zipping (118 MB - takes a minute)"
+Step 5 "Zipping (118 MB - takes a minute)"
 if ($InstallerOnly) { Write-Host "  Skipped (-InstallerOnly)." -ForegroundColor Yellow } else {
 $localZip = "$Work\rifftag-$ver-windows.zip"
 if (Test-Path $localZip) { Remove-Item $localZip -Force }
@@ -131,7 +126,7 @@ if (Test-Path $localZip) {
 
 # --- installer -------------------------------------------------------
 # Optional: without Inno Setup the zip above is still a complete result.
-Step 7 "Building the installer"
+Step 6 "Building the installer"
 # Two fixed paths were not enough: Dave had Inno Setup installed and the
 # script still said it was missing. It can be per-user, and the folder is
 # version-named. Ask the registry first - that is where the installer
@@ -182,16 +177,61 @@ if (-not $iscc) {
         if (Test-Path $setup) {
             Copy-Item $setup "$Share\dist\RiffTag-$ver-Setup.exe" -Force
             Good "Installer on the share: RiffTag-$ver-Setup.exe"
+            $script:builtSetup = $setup
         } else {
             Fail "ISCC produced no Setup.exe"
         }
     }
 }
 
+# --- install on this machine -----------------------------------------
+# Until 2026-11-28 step 5 robocopied a loose copy to C:\RiffTagApp. Dave runs
+# the copy the Setup.exe installed (Start Menu), so every build left his real
+# RiffTag on the old version - he saw 0.3 after building 0.4.1. Now the new
+# installer itself is run silently, upgrading that copy in place (same AppId),
+# and the stray C:\RiffTagApp is removed.
+Step 7 "Installing RiffTag $ver on this machine"
+if (-not $script:builtSetup) {
+    Write-Host "  Skipped - no installer was built." -ForegroundColor Yellow
+} else {
+    Get-Process RiffTag -ErrorAction SilentlyContinue | Stop-Process -Force
+    Start-Sleep -Seconds 1
+    # Upgrade whichever copy exists: the installer offers per-user or
+    # all-users, and installing the other kind would leave two RiffTags.
+    function Find-RiffTag {
+        foreach ($key in "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+                         "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+                         "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") {
+            $hive = $key.Substring(0, 5)
+            $hit = Get-ItemProperty $key -ErrorAction SilentlyContinue |
+                   Where-Object { $_.DisplayName -like "RiffTag*" } |
+                   Select-Object -First 1
+            if ($hit) { return @{ Hive = $hive; Entry = $hit } }
+        }
+    }
+    $before = Find-RiffTag
+    $scope = if ($before -and $before.Hive -eq "HKLM:") { "/ALLUSERS" } else { "/CURRENTUSER" }
+    $p = Start-Process $script:builtSetup -Wait -PassThru -ArgumentList `
+         "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", $scope
+    $after = Find-RiffTag
+    $installed = if ($after) { $after.Entry } else { $null }
+    if ($p.ExitCode -ne 0) {
+        Fail "Setup exited with code $($p.ExitCode)"
+    } elseif ($installed -and $installed.DisplayVersion -eq $ver) {
+        Good "Installed $ver at $($installed.InstallLocation)"
+    } else {
+        Fail "Setup ran but the installed version reads '$($installed.DisplayVersion)', not $ver"
+    }
+    if (Test-Path $OldAppDir) {
+        Remove-Item $OldAppDir -Recurse -Force -ErrorAction SilentlyContinue
+        if (-not (Test-Path $OldAppDir)) { Good "Removed the old loose copy at $OldAppDir" }
+    }
+}
+
 Write-Host ""
 Write-Host ("=" * 58)
 if ($ok) {
-    Write-Host "Done. RiffTag $ver is at $AppDir, and the share has:" -ForegroundColor Green
+    Write-Host "Done. RiffTag $ver is installed, and the share has:" -ForegroundColor Green
     Get-ChildItem "$Share\dist" -Filter "*$ver*" |
         ForEach-Object { Write-Host ("   {0}  {1:N0} KB" -f $_.Name, ($_.Length / 1KB)) }
 } else {
