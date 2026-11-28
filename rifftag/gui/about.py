@@ -23,7 +23,7 @@ from ..webimport import __version__ as _web_version
 from .splash import logo_path
 from .theme import is_dark
 
-VERSION = "0.4.1"
+VERSION = "0.5"
 TAGLINE = "Edit. Rename. Organize."
 
 #: Where "support RiffTag" points. One link, in this dialog, and nowhere
@@ -83,8 +83,12 @@ class AboutDialog(QDialog):
             <p><b>Supported formats</b></p>
             {format_table_html()}
             <p><b>Online lookup</b>: MusicBrainz (no account needed) and
-            Discogs (free personal token). freedb, which the original used,
-            shut down in 2020.</p>
+            Discogs (free personal token) for albums;
+            <a href='https://www.themoviedb.org/'>TMDB</a> (free API key) for
+            movies and TV episodes. freedb, which the original used, shut down
+            in 2020.</p>
+            <p style='font-size:small'>This product uses the TMDB API but is
+            not endorsed or certified by TMDB.</p>
             <p>Tag reading and writing by
             <a href='https://mutagen.readthedocs.io/'>mutagen</a>, and by
             <a href='https://mkvtoolnix.download/'>MKVToolNix</a> for Matroska;

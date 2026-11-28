@@ -48,6 +48,7 @@ from .splash import app_icon, show_splash, wordmark
 from .statusbar import StatusTotals
 from .theme import (Theme, apply as apply_theme, capture_system_palette,
                     themed_icon, use_portable_style)
+from .videolookup import VideoLookupDialog
 from .webimport import WebImportDialog
 from .tabs import FilenameToTagTab, MultiTagTab, RenameTab
 from .tageditor import TagEditorDialog
@@ -508,6 +509,8 @@ class MainWindow(QMainWindow):
         for label, slot in (
                 ("Edit all supported tag fields\tCtrl+F5", self._open_tag_editor),
                 ("Get album titles from the Web…", self._web_import),
+                ("Get movie / TV info from TMDB…\tCtrl+Shift+W",
+                 self._video_lookup),
                 ("Auto fill track #…", self._autofill_track),
                 ("Auto fill episode #…", self._autofill_episode),
                 ("Convert audio format…", self._convert),
@@ -522,6 +525,10 @@ class MainWindow(QMainWindow):
                 ("Extract folder.jpg from files tag", self._extract_folder_jpg)):
             act = QAction(label.split("\t")[0], self)
             act.triggered.connect(slot)
+            if slot == self._video_lookup:
+                # The only Tools entry without a toolbar button, so it gets
+                # its own key rather than borrowing one from the toolbar.
+                act.setShortcut("Ctrl+Shift+W")
             tools.addAction(act)
 
         opts = self.menuBar().addMenu("&Options")
@@ -554,6 +561,9 @@ class MainWindow(QMainWindow):
         act_token = QAction("Discogs access &token…", self)
         act_token.triggered.connect(self._set_discogs_token)
         opts.addAction(act_token)
+        act_tmdb = QAction("TMDB API &key (movies && TV)…", self)
+        act_tmdb.triggered.connect(self._set_tmdb_key)
+        opts.addAction(act_tmdb)
 
         act_shortcuts = QAction("Create &shortcuts…", self)
         act_shortcuts.setToolTip("Add RiffTag to the desktop or the panel")
@@ -1695,6 +1705,30 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(
                 f"Imported tags into {dialog.wrote} file(s)")
             self._refresh_tracks(tracks)
+
+    def _video_lookup(self) -> None:
+        tracks = self._require_selection()
+        if not tracks:
+            return
+        key = str(self.settings.value("tmdb_key", "") or "")
+        dialog = VideoLookupDialog(tracks, self, tmdb_key=key,
+                                   write_options=self.write_options)
+        dialog.exec()
+        if dialog.wrote:
+            self.statusBar().showMessage(
+                f"Wrote TMDB info into {dialog.wrote} file(s)")
+            self._refresh_tracks(tracks)
+
+    def _set_tmdb_key(self) -> None:
+        from PyQt6.QtWidgets import QInputDialog, QLineEdit as _LineEdit
+        current = str(self.settings.value("tmdb_key", "") or "")
+        key, ok = QInputDialog.getText(
+            self, "TMDB API key",
+            "Your free key from themoviedb.org → Settings → API.\n"
+            "Either the short API Key or the long API Read Access Token works.",
+            _LineEdit.EchoMode.Password, current)
+        if ok:
+            self.settings.setValue("tmdb_key", key.strip())
 
     def _set_discogs_token(self) -> None:
         from PyQt6.QtWidgets import QInputDialog, QLineEdit as _LineEdit

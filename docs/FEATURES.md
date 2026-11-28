@@ -41,6 +41,22 @@ when they have none), searches, lists the releases, then lines the fetched
 titles up against the files positionally — with Move title ↑/↓ to fix an
 offset — and writes only the fields you tick.
 
+**Movie and TV lookup** (Tools → Get movie / TV info from TMDB…,
+Ctrl+Shift+W; added 2026-11-28) does the same for video files, from
+**TMDB**. It needs a free API key (themoviedb.org → Settings → API) pasted
+into Options → TMDB API key; the short v3 key and the long v4 read token both
+work. IMDb was ruled out (no API; scraping breaks its terms) and TheTVDB is
+TV-only with subscription-tied keys. The search page prefills from the file
+name — `Title (Year)`, `Title.Year.1080p…`, `Show - S01E02`, `1x02` — and
+picks Movie or TV from it. **Movies** are walked one file at a time: write or
+skip, and the next file comes up already searched. **TV** looks the show up
+once and matches every selected file to an episode by the season/episode in
+its name (editable in the table). It writes title, year, genre, description
+(as Comment), show / season / episode / `S01E02` for TV, and the poster
+(season poster preferred) as cover art. Plex reads these when its own online
+match finds nothing, which is the home-video case. About carries the
+attribution TMDB's API terms require.
+
 The folder tree renames in place: click, pause, click again (or F2), as in the
 original. The three tabs sit **above** the file list, with the **colour key**
 beside them.

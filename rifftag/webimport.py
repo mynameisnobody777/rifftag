@@ -124,8 +124,13 @@ def _retry_after(exc, attempt: int) -> float:
     return min(0.5 * (2 ** attempt), MAX_BACKOFF)
 
 
+DISCOGS_AUTH_HINT = ("Not authorised — check the Discogs token in "
+                     "Options → Discogs access token.")
+
+
 def _get(url: str, headers: dict[str, str] | None = None, *,
-         retries: int = MAX_RETRIES) -> bytes:
+         retries: int = MAX_RETRIES,
+         auth_hint: str = DISCOGS_AUTH_HINT) -> bytes:
     """Fetch a URL, riding out rate limits rather than surfacing them."""
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT,
                                                    **(headers or {})})
@@ -138,9 +143,8 @@ def _get(url: str, headers: dict[str, str] | None = None, *,
                 time.sleep(_retry_after(exc, attempt))
                 continue
             if exc.code == 401:
-                raise WebImportError(
-                    "Not authorised — check the Discogs token in "
-                    "Options → Discogs access token.") from exc
+                # Which key to check depends on the caller; TMDB passes its own.
+                raise WebImportError(auth_hint) from exc
             if exc.code in RATE_LIMIT_CODES:
                 raise WebImportError(
                     "The server is rate limiting us and did not let up after "
@@ -159,9 +163,10 @@ def _get(url: str, headers: dict[str, str] | None = None, *,
     raise WebImportError("The request could not be completed.")
 
 
-def _get_json(url: str, headers: dict[str, str] | None = None):
+def _get_json(url: str, headers: dict[str, str] | None = None, *,
+              auth_hint: str = DISCOGS_AUTH_HINT):
     try:
-        return json.loads(_get(url, headers).decode("utf-8"))
+        return json.loads(_get(url, headers, auth_hint=auth_hint).decode("utf-8"))
     except json.JSONDecodeError as exc:
         raise WebImportError("The server sent something that was not JSON.") from exc
 

@@ -12,6 +12,7 @@ them like a spreadsheet — then tells you what a distributor would send back.
 * Edit a whole album at once, touching only the fields you tick
 * Cover art by drag and drop, in the tag or as `folder.jpg`
 * Album details from MusicBrainz or Discogs
+* Movie and TV episode details and posters from TMDB (free API key)
 * Lyrics cleanup for streaming delivery, and tap-to-sync to an `.lrc`
 * Convert to MP3, FLAC, WAV or M4A without touching the originals
 * Play your files while you work

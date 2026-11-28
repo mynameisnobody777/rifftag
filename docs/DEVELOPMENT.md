@@ -28,6 +28,8 @@ rifftag/
   lrc.py       the LRC format — stamps, metadata, parse and build
   tracknum.py  the track # format menu and auto fill
   webimport.py MusicBrainz and Discogs lookup (stdlib urllib, no deps)
+  tmdb.py      TMDB movie/TV lookup and file-name guessing (reuses
+               webimport's _get; parsing tested from canned JSON)
   gui/
     model.py     the folder-tree file list, the filter, the background scan
                  worker and the tag-section shading delegate
@@ -45,6 +47,7 @@ rifftag/
     lrcsync.py   tap-to-sync: time the lyrics against the playing track
     art.py       the cover-art drop target and the picture decoding
     webimport.py the Load Album Titles from Web dialog
+    videolookup.py the TMDB movie / TV dialog
     dialogs.py   the small prompts (Auto Fill Track #)
     theme.py     light / dark / follow-the-desktop palettes
     splash.py    startup splash, app icon, wordmark and emblem pixmaps
